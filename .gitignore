@@ -155,3 +155,15 @@ vite.config.ts.timestamp-*
 .nx/cache
 .nx/workspace-data
 .nx/migrate-runs
+
+# Python / FastAPI
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Java / Spring Boot
+target/
+build/
+*.class
+.gradle/
