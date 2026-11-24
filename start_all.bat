@@ -7,7 +7,7 @@ echo  2. Spring Boot Service Server (Port 8080)
 echo  3. Next.js Frontend (Port 3000)
 echo ========================================================
 
-start "FastAPI Model & RAG Server (8000)" cmd /k "%~dp0start_fastapi.bat"
+start "FastAPI Model Server (8000)" cmd /k "%~dp0start_fastapi.bat"
 timeout /t 3 /nobreak > nul
 
 start "Spring Boot Backend Server (8080)" cmd /k "%~dp0start_spring.bat"

@@ -1,1 +1,38 @@
-@import "tailwindcss";
+/* Bootstrap 보조 커스텀 스타일 */
+body {
+  background-color: #f4f6f9;
+  color: #212529;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.625rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.04);
+}
+
+.card-header {
+  background-color: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+
+.list-group-item.active {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.badge-subtle-success {
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+.badge-subtle-warning {
+  background-color: #fff3cd;
+  color: #664d03;
+}
+
+.badge-subtle-danger {
+  background-color: #f8d7da;
+  color: #842029;
+}

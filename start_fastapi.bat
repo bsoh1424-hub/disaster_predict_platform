@@ -1,8 +1,8 @@
 @echo off
-title FastAPI Model & RAG Server (Port 8000)
+title FastAPI Model Server (Port 8000)
 echo ========================================================
-echo  Starting FastAPI Deep Learning & RAG Engine (Port 8000)
+echo  Starting FastAPI Deep Learning Server (Port 8000)
 echo ========================================================
 cd /d %~dp0fastapi-model
-python app\main.py
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 pause
