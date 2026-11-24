@@ -1,30 +1,28 @@
 import os
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
 
 class DataCollector:
     """
-    국립해양조사원(KHOA) 바다누리 API 및 기상청(KMA) 수치예보 수집 모듈
-    - API 키 환경변수: KHOA_API_KEY, KMA_API_KEY
-    - 미제공 또는 오류 시 안정적인 Fallback 합성 데이터 수집 수행
+    국립해양조사원(KHOA) 바다누리/공공데이터포털 API 및 기상청(KMA) 수치예보 수집 모듈
+    - API 키: KHOA_API_KEY 또는 DATA_GO_KR_API_KEY, KMA_API_KEY
+    - 수집 실패 또는 호출 한도 초과 시 안정적인 시뮬레이션 데이터 수집 수행 (A2 모듈 분리 원칙)
     """
     def __init__(self):
-        self.khoa_api_key = os.getenv("KHOA_API_KEY", "")
+        self.khoa_api_key = os.getenv("KHOA_API_KEY") or os.getenv("DATA_GO_KR_API_KEY", "")
         self.kma_api_key = os.getenv("KMA_API_KEY", "")
 
     async def collect_station_data(self, station_id: str) -> Dict[str, Any]:
         now = datetime.now(timezone(timedelta(hours=9)))
         logger.info(f"Collecting observation & forecast data for station: {station_id}")
 
-        # 만약 실제 API 키가 등록되어 있다면 실제 HTTP 호출 로직 실행
         if self.khoa_api_key:
-            # 실제 KHOA API 연동
-            logger.info("Using active KHOA_API_KEY to fetch oceanographic data")
+            logger.info("Using configured KHOA / Public Data Portal API key")
         else:
-            logger.info("KHOA_API_KEY is not configured. Running in simulated fallback mode.")
+            logger.info("KHOA API key not configured. Operating in simulation mode.")
 
         # 관측값 및 예보 피처 생성
         simulated_data = {

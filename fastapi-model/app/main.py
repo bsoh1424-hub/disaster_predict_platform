@@ -1,10 +1,20 @@
 import os
 import sys
+from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# 루트 .env 로드
+try:
+    from dotenv import load_dotenv
+    root_env = Path(__file__).resolve().parent.parent.parent / ".env"
+    if root_env.exists():
+        load_dotenv(dotenv_path=root_env)
+except Exception:
+    pass
 
 from app.inference.predictor import SurgePredictor
 from app.collector.collector import DataCollector
