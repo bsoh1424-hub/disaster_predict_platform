@@ -23,7 +23,7 @@ spring:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:h2:mem:storm_surge;MODE=MariaDB;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=FALSE
+    url: jdbc:h2:mem:storm_surge;MODE=MariaDB;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=FALSE;NON_KEYWORDS=YEAR
     username: sa
     password: 
     driver-class-name: org.h2.Driver
