@@ -1,0 +1,5 @@
+{
+    "python.terminal.useEnvFile": true,
+    "git.path": "C:\\Program Files\\Git\\cmd\\git.exe",
+    "git.enabled": true
+}

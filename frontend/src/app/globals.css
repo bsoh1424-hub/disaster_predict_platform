@@ -1,0 +1,70 @@
+/* Bootstrap 보조 커스텀 스타일 */
+body {
+  background-color: #f4f6f9;
+  color: #212529;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0.625rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.04);
+}
+
+.card-header {
+  background-color: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+
+.list-group-item.active {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.badge-subtle-success {
+  background-color: #d1e7dd;
+  color: #0f5132;
+}
+
+.badge-subtle-warning {
+  background-color: #fff3cd;
+  color: #664d03;
+}
+
+.badge-subtle-danger {
+  background-color: #f8d7da;
+  color: #842029;
+}
+
+/* Leaflet DivIcon 기본 사각형 테두리 제거 */
+.leaflet-div-icon,
+.custom-coast-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* 해안 마커 펄스 애니메이션 */
+@keyframes warning-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(220, 53, 69, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+  }
+}
+
+@keyframes advisory-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+}

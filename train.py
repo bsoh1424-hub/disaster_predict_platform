@@ -1,2 +1,0 @@
-ㅈㄷㄴㅇㄴ
-jkljgfghfgh
