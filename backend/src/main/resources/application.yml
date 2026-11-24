@@ -1,0 +1,69 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: storm-surge-backend
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# 기본 로컬 프로파일: MariaDB 호환 H2 인메모리 (MariaDB 미설치/미구동 시에도 즉시 전체 기능 작동)
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:mem:storm_surge;MODE=MariaDB;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+# 운영 및 MariaDB 프로파일 (실제 로컬 MariaDB 또는 Docker 컨테이너 MariaDB 사용 시)
+---
+spring:
+  config:
+    activate:
+      on-profile: mariadb
+  datasource:
+    url: ${DB_URL:jdbc:mariadb://localhost:3306/storm_surge?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Seoul}
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: org.mariadb.jdbc.Driver
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MariaDBDialect
+
+---
+# 공통 설정
+jwt:
+  secret: c3Rvcm0tc3VyZ2UtcHJlZGljdC1wbGF0Zm9ybS1zZWNyZXQta2V5LTIwMjYtc3ByaW5nLWJvb3Qtand0IQ==
+  expiration-ms: 86400000
+
+fastapi:
+  base-url: ${FASTAPI_BASE_URL:http://localhost:8000}
+  connect-timeout-ms: 3000
+  read-timeout-ms: 5000
+
+logging:
+  level:
+    com.disaster.stormsurge: INFO
+    org.springframework.security: INFO
