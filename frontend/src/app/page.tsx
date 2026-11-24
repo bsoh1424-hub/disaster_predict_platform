@@ -2,20 +2,43 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { api } from '../lib/api';
 import { StationSummary } from '../types/api';
+
+const KoreaCoastMap = dynamic(() => import('../components/KoreaCoastMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="card shadow-sm p-5 text-center text-muted d-flex align-items-center justify-content-center" style={{ height: '620px' }}>
+      <div>
+        <div className="spinner-border text-primary mb-3" role="status"></div>
+        <div className="fw-semibold">대한민국 연안 관측망 지도를 불러오는 중...</div>
+      </div>
+    </div>
+  )
+});
 
 export default function HomePage() {
   const [stations, setStations] = useState<StationSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [regionFilter, setRegionFilter] = useState<string>('전체');
+  const [viewMode, setViewMode] = useState<'map' | 'grid'>('map');
+  const [selectedStation, setSelectedStation] = useState<StationSummary | null>(null);
 
   useEffect(() => {
     async function load() {
       try {
         const data = await api.getStations();
         setStations(data);
+        if (data.length > 0) {
+          // 위험도(경보 > 주의보 > 정상)가 가장 높은 관측소를 기본 선택
+          const sorted = [...data].sort((a, b) => {
+            const score = (lvl: string) => lvl === 'WARNING' ? 3 : lvl === 'ADVISORY' ? 2 : 1;
+            return score(b.alertLevel) - score(a.alertLevel);
+          });
+          setSelectedStation(sorted[0]);
+        }
       } catch (e) {
         console.error(e);
         setError('Spring Boot 백엔드 서버에서 관측소 데이터를 불러오지 못했습니다.');
@@ -40,10 +63,10 @@ export default function HomePage() {
       <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 pb-3 border-bottom">
         <div>
           <h2 className="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
-            <i className="bi bi-grid-1x2 text-primary"></i> 전국 연안 조위관측소 실시간 종합 현황판
+            <i className="bi bi-geo-alt-fill text-danger"></i> 전국 연안 조위관측소 실시간 종합 상황판
           </h2>
           <p className="text-muted small mb-0">
-            국립해양조사원(KHOA) 전국 10개 주요 조위관측소의 실시간 조위 및 폭풍해일 특보 임계 상태를 통합 모니터링합니다.
+            대한민국 10개 주요 조위관측소의 실시간 조위 및 12h/24h 폭풍해일 특보 임계 상태를 통합 모니터링합니다.
           </p>
         </div>
 
@@ -65,7 +88,7 @@ export default function HomePage() {
       </div>
 
       {/* 안내 알림 (PRD F5) */}
-      <div className="alert alert-warning py-2 px-3 mb-4 d-flex align-items-center justify-content-between shadow-sm border-0">
+      <div className="alert alert-warning py-2 px-3 mb-4 d-flex flex-wrap align-items-center justify-content-between gap-2 shadow-sm border-0">
         <div className="d-flex align-items-center gap-2 small">
           <i className="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
           <span>
@@ -77,26 +100,48 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* 해역 필터 탭 */}
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <div className="btn-group shadow-sm" role="group">
-          {regions.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRegionFilter(r)}
-              className={`btn btn-sm ${regionFilter === r ? 'btn-primary' : 'btn-outline-secondary bg-white'}`}
-            >
-              {r === '전체' ? '전체 해역 (10)' : `${r}해`}
-            </button>
-          ))}
+      {/* 해역 필터 탭 & 뷰 모드 전환 */}
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          <div className="btn-group shadow-sm" role="group">
+            {regions.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRegionFilter(r)}
+                className={`btn btn-sm ${regionFilter === r ? 'btn-primary' : 'btn-outline-secondary bg-white'}`}
+              >
+                {r === '전체' ? '전체 해역 (10)' : `${r}해`}
+              </button>
+            ))}
+          </div>
+          <span className="text-muted small">
+            {filtered.length}개 관측소 표시 중
+          </span>
         </div>
-        <span className="text-muted small">
-          {filtered.length}개 관측소 표시 중
-        </span>
+
+        {/* 뷰 모드 전환 버튼 (지도 뷰 vs 카드 그리드 뷰) */}
+        <div className="btn-group shadow-sm" role="group">
+          <button
+            type="button"
+            onClick={() => setViewMode('map')}
+            className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'map' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+          >
+            <i className="bi bi-map"></i>
+            <span>대한민국 지도 뷰</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'grid' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+          >
+            <i className="bi bi-grid-3x3-gap"></i>
+            <span>격자 카드 뷰</span>
+          </button>
+        </div>
       </div>
 
-      {/* 10개 관측소 카드 그리드 */}
+      {/* 로딩 및 에러 처리 */}
       {loading ? (
         <div className="card shadow-sm p-5 text-center text-muted">
           <div className="spinner-border text-primary mx-auto mb-3" role="status"></div>
@@ -106,7 +151,173 @@ export default function HomePage() {
         <div className="alert alert-danger p-4 text-center">
           <div>{error}</div>
         </div>
+      ) : viewMode === 'map' ? (
+        /* ================= 1. 대한민국 해안 지도 뷰 ================= */
+        <div className="row g-3">
+          {/* 좌측: 대한민국 연안 지도 (Leaflet 인터랙티브 맵) */}
+          <div className="col-lg-8">
+            <KoreaCoastMap
+              stations={filtered}
+              selectedStation={selectedStation}
+              onSelectStation={(st) => setSelectedStation(st)}
+            />
+          </div>
+
+          {/* 우측: 선택된 관측소 상세 정보 및 위험 순위 리스트 */}
+          <div className="col-lg-4 d-flex flex-column gap-3">
+            {/* 선택된 관측소 상세 카드 */}
+            {selectedStation ? (
+              <div className="card shadow-sm border-top border-4 border-primary">
+                <div className="card-header bg-white py-2 px-3 d-flex align-items-center justify-content-between">
+                  <div>
+                    <h5 className="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                      <span>{selectedStation.name} 관측소</span>
+                      <span className="badge bg-secondary-subtle text-secondary small font-monospace" style={{ fontSize: '0.7rem' }}>
+                        {selectedStation.stationCode}
+                      </span>
+                    </h5>
+                  </div>
+                  <span className="badge bg-light text-dark border">
+                    {selectedStation.seaRegion}해안
+                  </span>
+                </div>
+
+                <div className="card-body p-3">
+                  <div className="d-flex justify-content-between align-items-baseline mb-2">
+                    <span className="text-muted small">예상 최고 총수위</span>
+                    <div className="text-end">
+                      <span className="fs-2 fw-bold font-monospace text-primary">
+                        {selectedStation.latestTotalTideCm}
+                      </span>
+                      <span className="text-muted small ms-1">cm</span>
+                    </div>
+                  </div>
+
+                  {/* 특보 상태 뱃지 */}
+                  <div
+                    className="d-flex align-items-center justify-content-between p-2 rounded mb-3"
+                    style={{
+                      backgroundColor:
+                        selectedStation.alertLevel === 'WARNING'
+                          ? '#f8d7da'
+                          : selectedStation.alertLevel === 'ADVISORY'
+                          ? '#fff3cd'
+                          : '#d1e7dd'
+                    }}
+                  >
+                    <span className="small fw-semibold text-muted">특보 상태:</span>
+                    <span
+                      className={`badge ${
+                        selectedStation.alertLevel === 'WARNING'
+                          ? 'bg-danger'
+                          : selectedStation.alertLevel === 'ADVISORY'
+                          ? 'bg-warning text-dark'
+                          : 'bg-success'
+                      }`}
+                    >
+                      {selectedStation.alertLevel === 'WARNING'
+                        ? '🚨 경보 초과'
+                        : selectedStation.alertLevel === 'ADVISORY'
+                        ? '⚠️ 주의보 초과'
+                        : '✅ 정상 수위'}
+                    </span>
+                  </div>
+
+                  {/* 임계치 진행 바 */}
+                  <div className="mb-3">
+                    <div className="d-flex justify-content-between small text-muted mb-1" style={{ fontSize: '0.75rem' }}>
+                      <span>기준 임계치 비교</span>
+                      <span>
+                        주의보: <strong>{selectedStation.advisoryThresholdCm}cm</strong> / 경보: <strong>{selectedStation.warningThresholdCm}cm</strong>
+                      </span>
+                    </div>
+                    <div className="progress" style={{ height: '8px' }}>
+                      <div
+                        className={`progress-bar ${
+                          selectedStation.alertLevel === 'WARNING'
+                            ? 'bg-danger'
+                            : selectedStation.alertLevel === 'ADVISORY'
+                            ? 'bg-warning'
+                            : 'bg-success'
+                        }`}
+                        role="progressbar"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round((selectedStation.latestTotalTideCm / selectedStation.warningThresholdCm) * 100)
+                          )}%`
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* 상세 분석 페이지 이동 링크 버튼 */}
+                  <Link
+                    href={`/forecast?station=${selectedStation.stationCode}`}
+                    className="btn btn-primary w-100 fw-semibold d-flex align-items-center justify-content-center gap-2"
+                  >
+                    <span>{selectedStation.name} 예측 모델 &middot; XAI 분석 차트</span>
+                    <i className="bi bi-arrow-right"></i>
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
+            {/* 전국 10개 관측소 수위 현황 리스트 (클릭 시 지도 이동) */}
+            <div className="card shadow-sm flex-grow-1" style={{ maxHeight: '315px', overflowY: 'auto' }}>
+              <div className="card-header bg-white py-2 px-3 fw-bold small text-dark d-flex justify-content-between align-items-center">
+                <span><i className="bi bi-list-ol text-primary me-1"></i> 관측소별 위험 현황</span>
+                <small className="text-muted">클릭 시 해당 위치로 이동</small>
+              </div>
+              <div className="list-group list-group-flush small">
+                {filtered.map((st) => {
+                  const isCurrent = selectedStation?.stationCode === st.stationCode;
+                  const isWarn = st.alertLevel === 'WARNING';
+                  const isAdv = st.alertLevel === 'ADVISORY';
+
+                  return (
+                    <button
+                      key={st.stationCode}
+                      type="button"
+                      onClick={() => setSelectedStation(st)}
+                      className={`list-group-item list-group-item-action d-flex align-items-center justify-content-between py-2 px-3 ${
+                        isCurrent ? 'bg-primary-subtle text-primary-emphasis fw-bold' : ''
+                      }`}
+                    >
+                      <div className="d-flex align-items-center gap-2">
+                        <span
+                          style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            backgroundColor: isWarn ? '#dc3545' : isAdv ? '#fd7e14' : '#198754'
+                          }}
+                        ></span>
+                        <span>{st.name}</span>
+                        <span className="text-muted" style={{ fontSize: '0.7rem' }}>({st.seaRegion})</span>
+                      </div>
+                      <div className="d-flex align-items-center gap-2 font-monospace">
+                        <span className={isWarn ? 'text-danger fw-bold' : isAdv ? 'text-warning-emphasis fw-bold' : 'text-dark'}>
+                          {st.latestTotalTideCm} cm
+                        </span>
+                        <span
+                          className={`badge ${
+                            isWarn ? 'bg-danger' : isAdv ? 'bg-warning text-dark' : 'bg-light text-secondary border'
+                          }`}
+                          style={{ fontSize: '0.65rem' }}
+                        >
+                          {isWarn ? '경보' : isAdv ? '주의보' : '정상'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       ) : (
+        /* ================= 2. 격자 카드 뷰 ================= */
         <div className="row g-3">
           {filtered.map((st) => (
             <div key={st.stationCode} className="col-sm-6 col-lg-4 col-xl-3">
@@ -135,17 +346,27 @@ export default function HomePage() {
                   </div>
 
                   {/* 상태 배지 */}
-                  <div className="d-flex align-items-center justify-content-between p-2 rounded mb-3" style={{
-                    backgroundColor: st.alertLevel === 'WARNING' ? '#f8d7da' : st.alertLevel === 'ADVISORY' ? '#fff3cd' : '#d1e7dd'
-                  }}>
+                  <div
+                    className="d-flex align-items-center justify-content-between p-2 rounded mb-3"
+                    style={{
+                      backgroundColor:
+                        st.alertLevel === 'WARNING'
+                          ? '#f8d7da'
+                          : st.alertLevel === 'ADVISORY'
+                          ? '#fff3cd'
+                          : '#d1e7dd'
+                    }}
+                  >
                     <span className="small fw-semibold text-muted">특보 판정:</span>
-                    <span className={`badge ${
-                      st.alertLevel === 'WARNING'
-                        ? 'bg-danger'
-                        : st.alertLevel === 'ADVISORY'
-                        ? 'bg-warning text-dark'
-                        : 'bg-success'
-                    }`}>
+                    <span
+                      className={`badge ${
+                        st.alertLevel === 'WARNING'
+                          ? 'bg-danger'
+                          : st.alertLevel === 'ADVISORY'
+                          ? 'bg-warning text-dark'
+                          : 'bg-success'
+                      }`}
+                    >
                       {st.alertLevel === 'WARNING' ? '🚨 경보 초과' : st.alertLevel === 'ADVISORY' ? '⚠️ 주의보 초과' : '✅ 정상 수위'}
                     </span>
                   </div>
