@@ -13,11 +13,11 @@ if exist "%~dp0.env" (
     )
 )
 
-echo Active Profile : %SPRING_PROFILES_ACTIVE%
-echo Database URL   : %DB_URL%
-echo Database User  : %DB_USER%
+echo Active Profile : mariadb
+echo Database URL   : jdbc:mariadb://localhost:3306/storm_surge...
+echo Database User  : surge
 echo ========================================================
 
 cd /d %~dp0backend
-call "C:\Users\ohbs1\.gradle\wrapper\dists\gradle-9.7.1-bin\1w1c7tv4s851m17nbqdsro2tv\gradle-9.7.1\bin\gradle.bat" bootRun
+call "%USERPROFILE%\.gradle\wrapper\dists\gradle-9.7.1-bin\1w1c7tv4s851m17nbqdsro2tv\gradle-9.7.1\bin\gradle.bat" bootRun
 pause
