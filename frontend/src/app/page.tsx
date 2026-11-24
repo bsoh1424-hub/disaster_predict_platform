@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isRagOpen, setIsRagOpen] = useState<boolean>(false);
 
   // 초기 관측소 목록 로드
   useEffect(() => {
@@ -57,7 +58,6 @@ export default function DashboardPage() {
     try {
       const data = await api.recalculate(selectedStation);
       setForecast(data);
-      // 관측소 목록 상태도 리프레시
       const updatedStations = await api.getStations();
       setStations(updatedStations);
     } catch (err: unknown) {
@@ -70,14 +70,14 @@ export default function DashboardPage() {
   const currentStationInfo = stations.find((s) => s.stationCode === selectedStation);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative pb-16">
       {/* 최상단 공지 및 공식 특보 안내 배지 (PRD F5) */}
       <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-lg shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center space-x-3">
           <span className="text-xl">⚠️</span>
           <div>
             <h4 className="text-sm font-bold text-amber-900">
-              폭풍해일 공식 정보 대조 안내 (F5)
+              폭풍해일 공식 정보 대조 안내 (PRD F5)
             </h4>
             <p className="text-xs text-amber-800">
               본 시스템은 국립해양조사원 및 기상청 현업 수치예보(RTSM·CTSM)와 연계된 참고 경보입니다. 기상청 공식 특보 발표 시 공식 정보가 최우선입니다.
@@ -98,7 +98,7 @@ export default function DashboardPage() {
             <span>📍</span> 전국 주요 조위관측소 선택 (10개소)
           </h2>
           <span className="text-xs text-slate-500">
-            총 {stations.length}개 관측소 감시 중
+            총 {stations.length}개 관측소 실시간 모니터링
           </span>
         </div>
 
@@ -166,7 +166,7 @@ export default function DashboardPage() {
         </div>
       ) : forecast ? (
         <>
-          {/* 핵심 지표 요약 카드 (Q7, F2, F3) */}
+          {/* 핵심 지표 요약 카드 (Q7, F2, F3, A1) */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* 1차 핵심 표시: 총 수위 절대값 (Q7) */}
             <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
@@ -286,16 +286,16 @@ export default function DashboardPage() {
             stationName={forecast.stationName}
           />
 
-          {/* 하단 2분할: 근거 패널 (F4) & 방재 RAG AI 어시스턴트 */}
+          {/* 하단 2분할: 근거 패널 (F4) & 연안 방재 행동 지침 */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* 근거 패널 (PRD F4) */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                    <span>📑</span> 침수 위험 요인 분석 근거 패널 (F4)
+                    <span>📑</span> 침수 위험 요인 분석 근거 패널 (PRD F4)
                   </h3>
-                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                  <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">
                     설명 가능 AI (XAI)
                   </span>
                 </div>
@@ -313,7 +313,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg">
                     <span className="text-slate-600 font-medium">바람 밀어올림 (Wind Setup)</span>
-                    <span className="font-semibold text-slate-900">풍속의 제곱 비례 및 남향 연안 집중</span>
+                    <span className="font-semibold text-slate-900">풍속의 제곱 비례 및 연안 방향 집중</span>
                   </div>
                   <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg">
                     <span className="text-slate-600 font-medium">조석 상호작용 (Tide Interaction)</span>
@@ -327,14 +327,77 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 방재 전문 RAG 어시스턴트 (FastAPI 연계) */}
+            {/* 관측소 방재 제원 및 표준 행동 지침 (PRD 부록 A 대응) */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                    <span>🛡️</span> 지자체 및 어항 단계별 방재 행동 지침
+                  </h3>
+                  <span className="text-xs bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded">
+                    특보 연계
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="border border-emerald-200 bg-emerald-50/60 p-3 rounded-lg">
+                    <span className="font-bold text-emerald-800 block mb-1">1단계: 평시 및 잔차 단독 상승 시</span>
+                    <p className="text-slate-700 leading-relaxed">
+                      만조와 겹치지 않는 경우 총 수위 절대값이 임계치를 넘지 않으므로 과잉 대응을 지양하고 관측 조위 추이를 상시 모니터링합니다.
+                    </p>
+                  </div>
+                  <div className="border border-amber-200 bg-amber-50/60 p-3 rounded-lg">
+                    <span className="font-bold text-amber-800 block mb-1">2단계: 폭풍해일 주의보 ({forecast.advisoryThresholdCm}cm) 예상 시</span>
+                    <p className="text-slate-700 leading-relaxed">
+                      해안가 저지대 배수문 및 빗물펌프장 사전 가동 점검, 지하주차장·해안도로 사전 통제 준비, 어선 결박 및 피항 조치 완료.
+                    </p>
+                  </div>
+                  <div className="border border-rose-200 bg-rose-50/60 p-3 rounded-lg">
+                    <span className="font-bold text-rose-800 block mb-1">3단계: 폭풍해일 경보 ({forecast.warningThresholdCm}cm) 초과 예상 시</span>
+                    <p className="text-slate-700 leading-relaxed">
+                      해안 침수 우려 지역 주민 대피 권고 및 방파제·갯바위 전면 출입 통제, 상가 차수판 설치 완료 및 비상상황실 가동.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>지역 문턱: <strong className="text-slate-700">{forecast.localFloodThresholdCm}cm</strong> (침수 시작 기준)</span>
+                <span className="font-medium text-blue-600">행정안전부 국민행동요령 기준</span>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {/* 우측 하단 RAG AI 테스트용 플로팅 토글 버튼 & 패널 */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {!isRagOpen ? (
+          <button
+            onClick={() => setIsRagOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold p-3.5 rounded-full shadow-xl flex items-center gap-2 transition hover:scale-105"
+            title="방재 RAG 어시스턴트 열기"
+          >
+            <span className="text-xl">🤖</span>
+            <span className="text-xs font-semibold pr-1">방재 RAG 챗봇</span>
+          </button>
+        ) : (
+          <div className="w-[380px] sm:w-[420px] shadow-2xl rounded-2xl overflow-hidden border border-slate-300">
+            <div className="bg-slate-800 text-white px-3 py-1.5 flex justify-end">
+              <button
+                onClick={() => setIsRagOpen(false)}
+                className="text-slate-300 hover:text-white text-xs font-bold px-2 py-0.5"
+              >
+                ✕ 닫기
+              </button>
+            </div>
             <RagChatBot
               currentStationCode={selectedStation}
               currentStationName={currentStationInfo ? currentStationInfo.name : selectedStation}
             />
           </div>
-        </>
-      ) : null}
+        )}
+      </div>
     </div>
   );
 }
