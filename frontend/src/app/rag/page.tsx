@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { StationSummary } from '../../types/api';
 
 export default function RagPage() {
+  const router = useRouter();
   const [stations, setStations] = useState<StationSummary[]>([]);
   const [selectedStation, setSelectedStation] = useState<string>('BUSAN');
   const [query, setQuery] = useState<string>('');
@@ -19,6 +21,10 @@ export default function RagPage() {
   ]);
 
   useEffect(() => {
+    if (!localStorage.getItem('token')) {
+      router.push('/login?next=/rag');
+      return;
+    }
     async function load() {
       try {
         const data = await api.getStations();
@@ -28,11 +34,15 @@ export default function RagPage() {
       }
     }
     load();
-  }, []);
+  }, [router]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || loading) return;
+    if (!localStorage.getItem('token')) {
+      router.push('/login?next=/rag');
+      return;
+    }
 
     const userText = query.trim();
     setQuery('');
@@ -50,7 +60,11 @@ export default function RagPage() {
           engine: res.llm_used,
         },
       ]);
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+        router.push('/login?next=/rag');
+        return;
+      }
       setMessages((prev) => [
         ...prev,
         {
