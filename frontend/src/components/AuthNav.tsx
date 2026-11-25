@@ -21,13 +21,18 @@ export default function AuthNav() {
 
   if (loggedIn) {
     return (
-      <button
-        type="button"
-        onClick={handleLogout}
-        className="btn btn-outline-light btn-sm fw-semibold"
-      >
-        로그아웃
-      </button>
+      <div className="d-flex align-items-center gap-2">
+        <Link href="/mypage" className="btn btn-outline-light btn-sm fw-semibold">
+          마이페이지
+        </Link>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="btn btn-outline-light btn-sm fw-semibold"
+        >
+          로그아웃
+        </button>
+      </div>
     );
   }
 
