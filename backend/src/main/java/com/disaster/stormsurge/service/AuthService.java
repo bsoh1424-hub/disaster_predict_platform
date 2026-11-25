@@ -53,6 +53,41 @@ public class AuthService {
         return new AuthResponse(token, user.getUsername(), user.getName(), user.getRole(), user.getDepartment());
     }
 
+    @Transactional
+    public UserInfoResponse updateProfile(String username, UpdateProfileRequest req) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + username));
+        if (req.name() != null && !req.name().isBlank()) {
+            user.setName(req.name().trim());
+        }
+        if (req.department() != null) {
+            user.setDepartment(req.department().trim());
+        }
+        userRepository.save(user);
+        return new UserInfoResponse(user.getId(), user.getUsername(), user.getName(), user.getRole(), user.getDepartment(), user.getCreatedAt());
+    }
+
+    @Transactional
+    public void changePassword(String username, ChangePasswordRequest req) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + username));
+        if (!passwordEncoder.matches(req.currentPassword(), user.getPassword())) {
+            throw new BadCredentialsException("현재 비밀번호가 일치하지 않습니다.");
+        }
+        if (req.newPassword() == null || req.newPassword().length() < 4) {
+            throw new IllegalArgumentException("새 비밀번호는 4자 이상이어야 합니다.");
+        }
+        user.setPassword(passwordEncoder.encode(req.newPassword()));
+        userRepository.save(user);
+    }
+
+    @Transactional
+    public void deleteAccount(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + username));
+        userRepository.delete(user);
+    }
+
     public UserInfoResponse getUserInfo(String username) {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + username));
