@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import os
 import sys
 from pathlib import Path
@@ -26,6 +28,8 @@ except Exception:
 from app.inference.predictor import SurgePredictor
 from app.collector.collector import DataCollector
 from app.rag.rag_engine import DisasterRagEngine
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Storm Surge ML & RAG Engine",
@@ -117,7 +121,24 @@ async def trigger_collection(station_id: str):
 async def rag_query(req: RagRequest):
     """
     폭풍해일/재난 대응 전문 RAG 질의응답 (Spring Boot 중계)
+    1순위: app.rag.rag_service.ask() - ChromaDB + Ollama 실전 RAG
+    실패 시: 기존 템플릿 엔진(rag_engine)으로 폴백
     """
+    try:
+        # 지연 임포트: chromadb가 없는 환경에서도 predict 등 다른 API가
+        # 죽지 않게 한다. 임포트나 Ollama 호출이 실패하면 아래 폴백으로 간다.
+        from app.rag.rag_service import ask as rag_ask
+        result = await asyncio.to_thread(rag_ask, req.query)
+        sources = [f"{s.get('title', '')} > {s.get('section', '')}"
+                   for s in result.get("sources", [])]
+        return {
+            "query": req.query,
+            "answer": result["answer"],
+            "sources": sources,
+            "llm_used": "ollama-rag",
+        }
+    except Exception as e:
+        logger.warning("Real RAG failed, falling back to template: %s", e)
     try:
         response = await rag_engine.answer_query(req.query, req.context_info)
         return response
