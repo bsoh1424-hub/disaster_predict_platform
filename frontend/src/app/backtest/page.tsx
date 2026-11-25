@@ -40,155 +40,153 @@ export default function BacktestPage() {
   }, [selectedCaseId]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between border-b pb-4">
+    <div>
+      {/* 상단 네비게이션 & 타이틀 바 */}
+      <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 border-bottom pb-3 mb-3">
         <div>
-          <Link href="/" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mb-1">
-            ← 실시간 연안 대시보드로 돌아가기
+          <Link href="/" className="text-decoration-none text-primary fw-semibold small d-inline-flex align-items-center gap-1 mb-1">
+            <i className="bi bi-arrow-left"></i> 실시간 관제 대시보드로 돌아가기
           </Link>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            태풍 사례 백테스트 & 베이스라인 3자 비교 평가 (Q5, Q6, F6)
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            전체 기간 평균 오차(RMSE)가 아닌, 위험 이벤트(태풍 접근 시 피크 오차 및 임계 초과 분류) 단위로 모델을 엄격하게 채점합니다.
-          </p>
+          <div className="d-flex align-items-center gap-2">
+            <h4 className="mb-0 fw-bold text-dark">
+              과거 태풍 사례 백테스트 &middot; 베이스라인 3자 벤치마크 평가 (Q5 &middot; Q6 &middot; F6)
+            </h4>
+            <span className="badge bg-purple-subtle text-purple border" style={{ backgroundColor: '#f3e8ff', color: '#6f42c1' }}>
+              PRD 채택 기준 통과
+            </span>
+          </div>
+          <small className="text-muted d-block mt-1">
+            전체 기간 평균 오차(RMSE)가 아닌, 위험 이벤트(태풍 접근 시 피크 오차, 시각 오차, 총조위 임계 초과 분류 F1) 단위로 채점합니다.
+          </small>
         </div>
-        <span className="text-xs px-3 py-1 bg-purple-100 text-purple-800 rounded-full font-bold">
-          PRD v0.2 채택 기준
+
+        <span className="badge bg-light text-secondary border px-3 py-2">
+          고정 태풍 사례 세트 검증 모드
         </span>
       </div>
 
-      {/* 태풍 사례 선택기 */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {cases.map((c) => (
-          <button
-            key={c.caseId}
-            onClick={() => setSelectedCaseId(c.caseId)}
-            className={`p-4 rounded-xl border text-left transition flex flex-col justify-between ${
-              selectedCaseId === c.caseId
-                ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                : 'bg-white border-slate-200 text-slate-800 hover:bg-slate-50'
-            }`}
-          >
-            <div>
-              <span className={`text-[11px] font-mono font-bold block ${selectedCaseId === c.caseId ? 'text-blue-200' : 'text-slate-400'}`}>
-                {c.year}년 · {c.period}
-              </span>
-              <h3 className="font-bold text-base mt-1">{c.name}</h3>
+      {/* 태풍 사례 선택 카드 그리드 */}
+      <div className="row g-3 mb-3">
+        {cases.map((c) => {
+          const isSelected = selectedCaseId === c.caseId;
+          return (
+            <div key={c.caseId} className="col-md-4">
+              <div
+                onClick={() => setSelectedCaseId(c.caseId)}
+                className={`card shadow-sm h-100 cursor-pointer transition ${
+                  isSelected ? 'border-primary shadow' : 'border'
+                }`}
+                style={{ cursor: 'pointer', borderLeft: isSelected ? '4px solid #0d6efd' : undefined }}
+              >
+                <div className="card-body p-3 d-flex flex-column justify-content-between">
+                  <div>
+                    <span className="text-muted font-monospace small d-block">
+                      {c.year}년 태풍 &middot; {c.period}
+                    </span>
+                    <h5 className="fw-bold text-dark mt-1 mb-2">{c.name}</h5>
+                  </div>
+                  <div className="d-flex justify-content-between align-items-center pt-2 border-top small">
+                    <span className="text-muted">최대 관측 해일고</span>
+                    <span className="fw-bold font-monospace text-primary fs-6">+{c.maxSurgeCm}cm</span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="mt-4 pt-2 border-t border-slate-200/40 flex items-center justify-between text-xs">
-              <span>최대 관측 해일고</span>
-              <span className="font-extrabold font-mono text-sm">+{c.maxSurgeCm}cm</span>
-            </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
 
       {loading || !caseDetail ? (
-        <div className="p-12 text-center text-slate-400 bg-white rounded-xl border">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mb-3"></div>
-          <p>태풍 사례 시뮬레이션 데이터를 불러오는 중입니다...</p>
+        <div className="card shadow-sm p-5 text-center text-muted">
+          <div className="spinner-border text-primary mx-auto mb-3" role="status"></div>
+          <div>태풍 시뮬레이션 및 3자 평가 지표 계산 중...</div>
         </div>
       ) : (
         <>
           {/* 사례 개요 카드 */}
-          <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-800 mb-2">
-              {caseDetail.caseInfo.name} ({caseDetail.caseInfo.year}) 재현 개요
-            </h2>
-            <p className="text-sm text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-lg border border-slate-100 mb-4">
-              {caseDetail.caseInfo.description}
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-              <div className="p-3 bg-slate-100 rounded-lg">
-                <span className="text-slate-500 block">영향 관측소</span>
-                <span className="font-bold text-slate-800">{caseDetail.caseInfo.affectedStations}</span>
-              </div>
-              <div className="p-3 bg-slate-100 rounded-lg">
-                <span className="text-slate-500 block">발생 기간</span>
-                <span className="font-bold text-slate-800">{caseDetail.caseInfo.period}</span>
-              </div>
-              <div className="p-3 bg-slate-100 rounded-lg">
-                <span className="text-slate-500 block">검증 기준</span>
-                <span className="font-bold text-slate-800">피크 높이 오차, 피크 시각 오차, F1 Score</span>
+          <div className="card shadow-sm mb-3">
+            <div className="card-header py-2 px-3 bg-white fw-bold">
+              <i className="bi bi-info-circle text-primary me-1"></i> {caseDetail.caseInfo.name} ({caseDetail.caseInfo.year}) 과거 데이터 재현 개요
+            </div>
+            <div className="card-body p-3">
+              <p className="p-3 bg-light rounded border mb-3 small leading-relaxed">
+                {caseDetail.caseInfo.description}
+              </p>
+              <div className="row g-2 text-center small">
+                <div className="col-md-4">
+                  <div className="p-2 border rounded bg-light">
+                    <span className="text-muted d-block" style={{ fontSize: '0.75rem' }}>영향 관측소</span>
+                    <strong>{caseDetail.caseInfo.affectedStations}</strong>
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <div className="p-2 border rounded bg-light">
+                    <span className="text-muted d-block" style={{ fontSize: '0.75rem' }}>사례 발생 기간</span>
+                    <strong>{caseDetail.caseInfo.period}</strong>
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <div className="p-2 border rounded bg-light">
+                    <span className="text-muted d-block" style={{ fontSize: '0.75rem' }}>채택 평가 기준</span>
+                    <strong>피크 높이 오차, 피크 시각 오차, F1 Score</strong>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 3자 비교 평가 결과 테이블 (천문조 vs 기상청 RTSM vs 본 하이브리드 모델) */}
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-sm tracking-wide">
-                  📊 베이스라인 3자 비교 채점표 (Q5, Q6)
-                </h3>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  본 딥러닝 모델 vs 천문조 단독 베이스라인(잔차 0) vs 기상청 현업 수치예보(RTSM)
-                </p>
-              </div>
-              <span className="text-xs bg-emerald-600 text-white font-bold px-2.5 py-1 rounded">
-                채택 기준 만족
+          {/* 3자 비교 평가 결과 테이블 */}
+          <div className="card shadow-sm mb-3">
+            <div className="card-header py-2 px-3 bg-white d-flex align-items-center justify-content-between">
+              <span className="fw-bold">
+                <i className="bi bi-table text-primary me-1"></i> 베이스라인 3자 비교 채점표 (PRD Q5 &middot; Q6)
+              </span>
+              <span className="badge bg-success-subtle text-success border border-success-subtle">
+                PRD 7장 채택 요건 충족
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-slate-100 text-slate-700 uppercase font-semibold border-b border-slate-200">
+            <div className="table-responsive">
+              <table className="table table-hover table-bordered mb-0 align-middle small">
+                <thead className="table-light text-center">
                   <tr>
-                    <th className="py-3 px-4">관측소</th>
-                    <th className="py-3 px-4">리드타임</th>
-                    <th className="py-3 px-4 text-blue-700 font-bold bg-blue-50/50">
-                      본 모델 피크 오차 (cm)
-                    </th>
-                    <th className="py-3 px-4">시각 오차 (h)</th>
-                    <th className="py-3 px-4">초과 분류 F1</th>
-                    <th className="py-3 px-4 text-slate-500">
-                      천문조 베이스라인 오차
-                    </th>
-                    <th className="py-3 px-4 text-slate-500">
-                      기상청 RTSM 수치모델 오차
-                    </th>
-                    <th className="py-3 px-4">개선율</th>
+                    <th>관측소</th>
+                    <th>리드타임</th>
+                    <th className="table-primary text-primary fw-bold">본 딥러닝 피크 오차</th>
+                    <th>피크 시각 오차</th>
+                    <th>초과 분류 F1</th>
+                    <th className="text-muted">천문조 베이스라인</th>
+                    <th className="text-muted">기상청 RTSM 수치모델</th>
+                    <th className="text-success fw-bold">개선율 (vs 기상청)</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-mono">
+                <tbody className="text-center font-monospace">
                   {caseDetail.evaluations.map((ev, i) => {
-                    const improvementVsAstro = Math.round(
-                      ((ev.baselineAstroErrorCm - ev.peakErrorCm) / ev.baselineAstroErrorCm) * 100
-                    );
                     const improvementVsRtsm = Math.round(
                       ((ev.baselineRtsmErrorCm - ev.peakErrorCm) / ev.baselineRtsmErrorCm) * 100
                     );
 
                     return (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="py-3.5 px-4 font-sans font-bold text-slate-900">
-                          {ev.stationCode}
+                      <tr key={i}>
+                        <td className="fw-bold font-sans">{ev.stationCode}</td>
+                        <td>
+                          <span className="badge bg-light text-dark border">{ev.leadHour}h</span>
                         </td>
-                        <td className="py-3.5 px-4">
-                          <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-bold">
-                            {ev.leadHour}h
-                          </span>
+                        <td className="table-primary text-primary fw-bold fs-6">
+                          &plusmn;{ev.peakErrorCm}cm
                         </td>
-                        <td className="py-3.5 px-4 font-bold text-blue-700 text-sm bg-blue-50/30">
-                          ±{ev.peakErrorCm}cm
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-700">
-                          ±{ev.peakTimeErrorHours}h
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span className="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        <td>&plusmn;{ev.peakTimeErrorHours}h</td>
+                        <td>
+                          <span className="badge bg-success-subtle text-success border border-success-subtle">
                             {ev.exceedF1}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-500 line-through">
-                          ±{ev.baselineAstroErrorCm}cm
+                        <td className="text-muted text-decoration-line-through">
+                          &plusmn;{ev.baselineAstroErrorCm}cm
                         </td>
-                        <td className="py-3.5 px-4 text-slate-600">
-                          ±{ev.baselineRtsmErrorCm}cm
-                        </td>
-                        <td className="py-3.5 px-4 font-sans font-bold text-emerald-600">
-                          +{improvementVsRtsm}% (vs 기상청)
+                        <td className="text-secondary">&plusmn;{ev.baselineRtsmErrorCm}cm</td>
+                        <td className="fw-bold text-success font-sans">
+                          +{improvementVsRtsm}% 개선
                         </td>
                       </tr>
                     );
@@ -197,8 +195,9 @@ export default function BacktestPage() {
               </table>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
-              💡 <span className="font-semibold text-slate-800">채택 판정 결과:</span> 본 하이브리드 잔차 모델은 물리 모델이 잘하는 천문조를 빼고 남은 기압 역효과 및 바람 밀어올림 성분만 학습하여, 기상청 RTSM 수치모델 대비 피크 오차가 약 40~55% 감소하고, 천문조 베이스라인 대비 70% 이상 오차를 경감하여 PRD 7장 채택 요건을 충족합니다.
+            <div className="card-footer bg-light p-3 small text-muted">
+              <i className="bi bi-lightbulb-fill text-warning me-1"></i>
+              <strong>채택 판정:</strong> 본 물리-딥러닝 하이브리드 모델은 천문조를 빼고 남은 기압 역효과 및 바람 밀어올림 성분만 학습하여, 기상청 RTSM 모델 대비 피크 오차가 약 40~55% 감소하고 천문조 단독 대비 70% 이상 오차를 경감하여 PRD 7장 채택 요건을 충족합니다.
             </div>
           </div>
         </>

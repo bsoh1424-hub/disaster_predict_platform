@@ -3,6 +3,13 @@ import sys
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
+
+# fastapi-model 디렉터리를 sys.path 최우선 등록 (No module named 'app' 원천 방지)
+CURRENT_DIR = Path(__file__).resolve().parent
+FASTAPI_ROOT = CURRENT_DIR.parent
+if str(FASTAPI_ROOT) not in sys.path:
+    sys.path.insert(0, str(FASTAPI_ROOT))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field

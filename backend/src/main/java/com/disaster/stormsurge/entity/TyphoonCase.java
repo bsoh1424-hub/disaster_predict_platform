@@ -13,7 +13,7 @@ public class TyphoonCase {
     @Column(nullable = false, length = 50)
     private String name; // e.g. "태풍 매미 (MAEMI)"
 
-    @Column(nullable = false)
+    @Column(name = "case_year", nullable = false)
     private Integer year;
 
     @Column(nullable = false, length = 50)
