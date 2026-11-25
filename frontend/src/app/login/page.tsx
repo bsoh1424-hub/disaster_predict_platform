@@ -72,6 +72,12 @@ function LoginContent() {
           <p className="text-muted small mt-3 mb-0">
             테스트 계정: user / user123 (관리자: admin / admin123)
           </p>
+          <p className="small mt-3 mb-0">
+            계정이 없으신가요?{' '}
+            <Link href="/register" className="text-decoration-none fw-semibold">
+              회원가입
+            </Link>
+          </p>
           <Link href="/" className="small text-decoration-none d-inline-block mt-2">
             &larr; 대시보드로 돌아가기
           </Link>
