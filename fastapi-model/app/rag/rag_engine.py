@@ -1,63 +1,145 @@
-import os
-import json
-import logging
-from typing import Dict, Any, List
+"""팀 fastapi-model 연동용 껍데기 — 화면(/rag)은 그대로, RAG 본체만 기존 것으로 바꾼다.
 
-logger = logging.getLogger(__name__)
+팀 main.py가 쓰는 모양 (원본 기준):
+- 클래스: app.rag.rag_engine.DisasterRagEngine
+- main.py가 서버를 켤 때 DisasterRagEngine()을 한 번 만들고,
+  /rag/query가 들어오면 await rag_engine.answer_query(query, context_info)를 부른다.
+- 돌려주는 모양은 기존 틀과 같다: {"query", "answer", "sources", "llm_used"}.
+  sources는 문자열 목록 ("제목 > 항목")이다. llm_used에는 실제 모델명을 넣는다.
 
-# ==============================================================================
-# [사용자 전용 RAG 커스텀 영역]
-# 사용자가 직접 RAG(LangChain, LlamaIndex, ChromaDB, Milvus, OpenAI, Gemini 등)를
-# 구현할 수 있는 진입점입니다.
-# ==============================================================================
+이 파일은 RAG 로직이 없다. 질문을 받아 rag_service.ask()에 넘기고,
+팀이 쓰기 좋은 모양(answer + sources)으로 돌려준다.
+원래 파일(rag/main.py, 8001번)은 그대로 두면 된다. 둘은 따로 뜬다.
+
+흐름:
+브라우저(/rag) → Next.js → Spring Boot → 팀 FastAPI(8000) → DisasterRagEngine.answer_query() → rag_service.ask()
+"""
+
+import asyncio
+
+try:
+    from .rag_service import ask, get_collection, OLLAMA_URL, LLM_MODEL  # 패키지로 부를 때 (팀 서버)
+except ImportError:  # 단독 실행/테스트용 (python -c "from rag_engine import ...")
+    import os
+    import sys
+
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from rag_service import ask, get_collection, OLLAMA_URL, LLM_MODEL
+
+import requests
+
+
+def answer_query(question, k=3, station=None):
+    """질문 하나를 받아 답변과 근거를 돌려준다. 단독 테스트용 함수다.
+
+    question: 사용자 질문 (예: "부산 폭풍해일 주의보 기준이 뭐야?")
+    k: 근거로 쓸 청크 개수 (기본 3개 — 원래 설정과 같음)
+    station: 화면의 관측소 선택값 (예: "BUSAN"). 결과에만 적고, 검색어는 바꾸지 않는다.
+        팀 코드가 station을 안 넘겨도 된다. 안 넘기면 None으로 둔다.
+
+    돌려주는 모양:
+    {
+        "question": "부산 폭풍해일 주의보 기준이 뭐야?",
+        "answer": "3문장 이내의 존댓말 답변... (마지막 줄에 출처가 붙음)",
+        "sources": [
+            {"title": "문서 제목", "section": "## 소제목", "score": 0.812,
+             "source": "문서 제목 > 소제목", "file": "01-침수.md"},
+        ],
+        "station": "BUSAN",
+    }
+    """
+    if not question or not str(question).strip():
+        raise ValueError("question이 비어 있습니다.")
+    result = ask(str(question).strip(), k=k)  # RAG 본체에 질문을 넘김
+    sources = [
+        {
+            "title": s["title"],
+            "section": s["section"],
+            "score": s["score"],
+            "source": f'{s["title"]} > {s["section"]}',  # 화면의 "[출처: 문서명 > 항목]" 모양
+            "file": s.get("file", ""),
+        }
+        for s in result["sources"]
+    ]
+    return {
+        "question": result["question"],
+        "answer": result["answer"],
+        "sources": sources,
+        "station": station,
+    }
+
+
+# 팀 코드가 query()라는 이름으로 부를 때를 위한 별명. 하는 일은 answer_query와 같다.
+query = answer_query
+
+
+def rag_health():
+    """RAG가 답할 준비가 됐는지 확인하는 용도. 팀의 /health에서 쓰면 된다.
+
+    {"ok": true, "chunks": 110}처럼 나오면 준비된 것이다.
+    Ollama가 꺼져 있거나 인덱스가 비어 있으면 ok가 false가 되고, 이유는 detail에 적힌다.
+    """
+    try:
+        resp = requests.get(f"{OLLAMA_URL}/api/tags", timeout=5)
+        resp.raise_for_status()
+    except Exception as e:
+        return {"ok": False, "chunks": 0, "detail": f"Ollama에 닿지 않습니다: {e}"}
+    try:
+        count = get_collection().count()
+    except Exception as e:
+        return {"ok": False, "chunks": 0, "detail": f"ChromaDB를 열 수 없습니다: {e}"}
+    if count == 0:
+        return {"ok": False, "chunks": 0, "detail": "ChromaDB가 비어 있습니다. python -m app.rag.build_index를 먼저 실행하세요."}
+    return {"ok": True, "chunks": count, "detail": "준비됐습니다."}
+
 
 class DisasterRagEngine:
+    """팀 main.py가 만드는 RAG 엔진. 서버를 켤 때 한 번 만들어진다.
+
+    무거운 초기화는 없다. ask()가 불릴 때 ChromaDB와 Ollama에 닿는다.
+    main.py는 이렇게 쓴다:
+        from app.rag.rag_engine import DisasterRagEngine
+        rag_engine = DisasterRagEngine()
+        response = await rag_engine.answer_query(req.query, req.context_info)
     """
-    폭풍해일/재난 대응 전문 RAG 엔진
-    - 사용자가 직접 구축하거나 커스텀 LLM/벡터DB를 연결할 수 있습니다.
-    """
+
     def __init__(self):
-        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-        self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-        logger.info("DisasterRagEngine initialized. Ready for custom RAG integration.")
+        pass
 
-    async def answer_query(self, query: str, context_info: Dict[str, Any] = None) -> Dict[str, Any]:
-        """
-        Spring Boot로부터 중계받은 사용자 질의와 현재 관측소 상황 컨텍스트를 받아
-        RAG 처리 후 답변을 반환합니다.
-        
-        :param query: 사용자 질문 텍스트
-        :param context_info: {'station_name', 'total_tide', 'is_exceeded', 'tide_overlap'}
-        :return: {'query', 'answer', 'sources', 'llm_used'}
-        """
-        # ----------------------------------------------------------------------
-        # TODO: 여기에 사용자의 커스텀 RAG 검색 및 생성 코드를 넣으시면 됩니다.
-        # 예: retriever.get_relevant_documents(query) -> llm.invoke(...)
-        # ----------------------------------------------------------------------
+    async def answer_query(self, query, context_info=None):
+        """main.py의 /rag/query가 부르는 함수.
 
-        ctx_summary = ""
-        if context_info:
-            ctx_summary = (
-                f"\n[실시간 관측/예측 컨텍스트]\n"
-                f"- 대상 관측소: {context_info.get('station_name', '')}\n"
-                f"- 예상 최고 총수위: {context_info.get('total_tide', '')}cm\n"
-                f"- 특보 임계 초과여부: {context_info.get('is_exceeded', '')}\n"
-                f"- 만조 겹침 여부: {context_info.get('tide_overlap', '')}\n"
+        query: 사용자 질문 (예: "부산 폭풍해일 주의보 기준이 뭐야?")
+        context_info: 화면이 같이 보내는 정보 (예: {"station": "BUSAN"}). 없어도 된다.
+            station이 있으면 결과의 station에 적는다. 검색어는 바꾸지 않는다.
+
+        돌려주는 모양 (기존 틀과 같다):
+        {
+            "query": "부산 폭풍해일 주의보 기준이 뭐야?",
+            "answer": "답변...",
+            "sources": ["문서 제목 > 소제목", ...],
+            "llm_used": "exaone3.5:2.4b",
+            "station": "BUSAN",
+        }
+        """
+        if not query or not str(query).strip():
+            raise ValueError("query가 비어 있습니다.")
+        station = None
+        if isinstance(context_info, dict):
+            # 스프링이 보내는 키는 station_name이다. (RagService.java 원본 기준)
+            station = (
+                context_info.get("station")
+                or context_info.get("station_id")
+                or context_info.get("stationId")
+                or context_info.get("station_name")
             )
-
-        # 기본 표준 방재 지침 가이드 응답
-        guide_answer = (
-            f"질문하신 내용: '{query}'\n\n"
-            f"[기본 방재 원칙]\n"
-            f"1. 폭풍해일 침수 위험은 순수 해일 잔차가 아닌 [천문조 + 조위 편차(잔차) = 총 수위] 절대값을 기준으로 평가됩니다.\n"
-            f"2. 만조 시간대와 강풍·기압 급강하가 겹칠 경우 저지대 배수문 가동 및 해안도로 사전 통제가 필수적입니다.\n"
-            f"{ctx_summary}\n"
-            f"(안내: RAG 모듈은 사용자가 직접 커스텀하여 교체할 수 있도록 분리되어 있습니다.)"
-        )
-
+        # ask()는 동기 함수라서, await로 기다리는 동안 서버가 멈추지 않게 별도 스레드로 돌린다.
+        result = await asyncio.to_thread(ask, str(query).strip(), 3)
+        sources = [f'{s["title"]} > {s["section"]}' for s in result["sources"]]
         return {
-            "query": query,
-            "answer": guide_answer,
-            "sources": ["국립해양조사원 조석표", "기상청 폭풍해일 특보기준"],
-            "llm_used": "Custom-RAG-Ready"
+            "query": result["question"],
+            "answer": result["answer"],
+            "sources": sources,
+            "llm_used": LLM_MODEL,
+            "station": station,
         }
