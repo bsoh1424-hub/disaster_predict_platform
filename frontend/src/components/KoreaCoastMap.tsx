@@ -125,7 +125,7 @@ export default function KoreaCoastMap({
                 white-space: nowrap;
                 letter-spacing: -0.5px;
               ">
-                ${Math.round(st.latestTotalTideCm)}<span style="font-size: 10px; font-weight: 700; color: #64748b; margin-left: 2px;">cm</span>
+                ${st.latestObsTideCm != null ? Math.round(st.latestObsTideCm) : '–'}
               </div>
             </div>
 

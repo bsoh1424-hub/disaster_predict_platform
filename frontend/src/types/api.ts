@@ -23,7 +23,9 @@ export interface StationSummary {
   latitude: number;
   longitude: number;
   seaRegion: string;
-  latestTotalTideCm: number;
+  latestTotalTideCm: number | null;
+  latestObsTideCm: number | null;
+  latestObsTime: string | null;
   advisoryThresholdCm: number;
   warningThresholdCm: number;
   alertLevel: 'NORMAL' | 'ADVISORY' | 'WARNING';
