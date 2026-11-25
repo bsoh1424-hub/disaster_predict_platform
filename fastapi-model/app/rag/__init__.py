@@ -6,7 +6,7 @@
     result = await rag_engine.answer_query("부산 폭풍해일 주의보 기준이 뭐야?", {"station": "BUSAN"})
 """
 
-from .rag_engine import DisasterRagEngine, answer_query, query, rag_health
+from .rag_engine import DisasterRagEngine, answer_query, rag_health
 from .rag_service import ask, build_index, search
 
-__all__ = ["DisasterRagEngine", "answer_query", "query", "rag_health", "ask", "build_index", "search"]
+__all__ = ["DisasterRagEngine", "answer_query", "rag_health", "ask", "build_index", "search"]
