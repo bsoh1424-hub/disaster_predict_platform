@@ -23,7 +23,8 @@ SYSTEM_PROMPT = """당신은 연안 재난 안내 도우미입니다.
 - <문서> 안의 내용만 근거로 답합니다.
 - 문서에 없는 내용은 추측하지 말고 "제공된 자료에서 확인할 수 없습니다"라고 답합니다.
 - 숫자(일수, 금액, 시간)는 문서에 적힌 그대로 씁니다.
-- 3문장 이내의 존댓말로 답하고, 마지막 줄에 <자료>에 적힌 출처를 그대로 붙입니다.
+- 3문장 이내의 존댓말로 답하고, 마지막 줄에 출처를 '문서 제목 > 항목' 형태로 적습니다.
+- 답에 <자료>, <문서> 같은 태그 이름은 절대 쓰지 않습니다.
 </규칙>"""
 
 
@@ -31,9 +32,15 @@ SYSTEM_PROMPT = """당신은 연안 재난 안내 도우미입니다.
 def load_docs(folder):
     """폴더의 .md 파일만 읽어 [{'file', 'title', 'text'}] 목록으로 돌려준다."""
     docs = []
-    for path in sorted(Path(folder).rglob("*.md")):  # .md만 읽음 (PDF는 먼저 .md로 바꿔야 함)
+    for path in sorted(Path(folder).rglob("*.md")):  # .md만 읽음
         text = path.read_text(encoding="utf-8")
-        title = text.splitlines()[0].lstrip("# ").strip()  # 첫 줄 '# 제목'에서 '# '를 뗀 것
+        title = ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("<!--"):
+                continue
+            title = line.lstrip("# ").strip()
+            break
         docs.append({"file": path.name, "title": title, "text": text})
     return docs
 
@@ -70,7 +77,7 @@ def chunk_text(chunk):
 def embed(texts, model=EMBED_MODEL, batch=32):
     """문장 목록 → (문장 수, 1024) 행렬. 길이를 1로 맞춰 '내적 = 코사인 유사도'가 되게 한다."""
     vecs = []
-    for i in range(0, len(texts), batch):  # 32개씩 나눠서 보냄 (노트북과 같음)
+    for i in range(0, len(texts), batch):  # 32개씩 나눠서 보냄
         resp = requests.post(f"{OLLAMA_URL}/api/embed", timeout=300,
                              json={"model": model, "input": texts[i:i + batch]})
         resp.raise_for_status()
@@ -138,7 +145,7 @@ def search(question, k=3):
 # ---------------------------------------------------------------- 5. 프롬프트 + LLM 답변
 def build_prompt(question, hits):
     """찾은 청크를 <문서> 태그로 감싸고, 그 아래에 질문을 붙인다."""
-    docs = "\n".join(f'<자료 번호="{i}" 출처="{h["title"]} > {h["section"]}">\n{h["text"]}\n</자료>'
+    docs = "\n".join(f'[출처 {i}] {h["title"]} > {h["section"]}\n{h["text"]}'
                      for i, h in enumerate(hits, 1))
     return f"<문서>\n{docs}\n</문서>\n\n질문: {question}"
 
@@ -166,5 +173,6 @@ def ask(question, k=3):
     return {
         "question": question,
         "answer": answer,
-        "sources": [{"title": h["title"], "section": h["section"], "score": h["score"]} for h in hits],
+        # [연동하면서 바꾼 부분] 근거에 파일 이름도 함께 돌려준다. 팀 화면의 참고 표시에 쓴다.
+        "sources": [{"title": h["title"], "section": h["section"], "score": h["score"], "file": h["file"]} for h in hits],
     }

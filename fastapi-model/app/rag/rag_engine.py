@@ -17,9 +17,9 @@
 
 import asyncio
 
-try:
-    from .rag_service import ask, get_collection, OLLAMA_URL, LLM_MODEL  # 패키지로 부를 때 (팀 서버)
-except ImportError:  # 단독 실행/테스트용 (python -c "from rag_engine import ...")
+if __package__:
+    from .rag_service import ask, get_collection, OLLAMA_URL, LLM_MODEL
+else:
     import os
     import sys
 
@@ -67,10 +67,6 @@ def answer_query(question, k=3, station=None):
         "sources": sources,
         "station": station,
     }
-
-
-# 팀 코드가 query()라는 이름으로 부를 때를 위한 별명. 하는 일은 answer_query와 같다.
-query = answer_query
 
 
 def rag_health():
