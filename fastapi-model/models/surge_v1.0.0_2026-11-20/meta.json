@@ -1,0 +1,24 @@
+{
+  "version": "surge_v1.0.0_2026-11-20",
+  "created_at": "2026-11-20T00:00:00+09:00",
+  "train_period": "2015-01-01 ~ 2025-12-31",
+  "stations": [
+    "BUSAN", "INCHEON", "PYEONGTAEK", "MOKPO", "YEOSU",
+    "ULSAN", "POHANG", "BORYEONG", "GUNSAN", "JEJU"
+  ],
+  "data_snapshot": "KHOA Tide & KMA Numerical Forecast 10yr archive",
+  "features": [
+    "tide_obs_residual_lag1", "tide_obs_residual_lag3", "tide_obs_residual_lag6",
+    "pressure_diff_3h", "pressure_diff_6h", "wind_speed", "wind_dir_coastal",
+    "forecast_pressure_drop", "forecast_wind_speed", "tidal_phase"
+  ],
+  "evaluation": {
+    "peak_error_h12_cm": 8.4,
+    "peak_error_h24_cm": 14.2,
+    "exceed_f1_score": 0.89
+  },
+  "baselines": {
+    "astronomical_baseline_peak_error_cm": 38.6,
+    "rtsm_numerical_peak_error_cm": 17.5
+  }
+}
