@@ -61,7 +61,9 @@ jwt:
 fastapi:
   base-url: ${FASTAPI_BASE_URL:http://localhost:8000}
   connect-timeout-ms: 3000
-  read-timeout-ms: 5000
+  # RAG 첫 호출은 Ollama 모델 로딩 + LLM 생성으로 수십 초가 걸릴 수 있어
+  # 5초 타임아웃이면 Spring이 먼저 끊어버린다. 120초로 늘린다.
+  read-timeout-ms: 120000
 
 logging:
   level:
