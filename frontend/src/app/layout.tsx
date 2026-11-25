@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import Link from 'next/link';
+import AuthNav from '../components/AuthNav';
 
 export const metadata: Metadata = {
   title: '해수면 이상 상승 폭풍해일 예측 관제 시스템',
@@ -68,6 +69,7 @@ export default function RootLayout({
                   <span className="spinner-grow spinner-grow-sm me-1 text-success" style={{ width: '8px', height: '8px' }}></span>
                   실시간 관측망 가동 중
                 </span>
+                <AuthNav />
               </div>
             </div>
           </div>
