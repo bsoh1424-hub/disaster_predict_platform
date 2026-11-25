@@ -26,6 +26,32 @@ public class AuthController {
         return ResponseEntity.ok(authService.register(req));
     }
 
+    @PutMapping("/me")
+    public ResponseEntity<UserInfoResponse> updateMe(Authentication auth, @RequestBody UpdateProfileRequest req) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(authService.updateProfile(auth.getName(), req));
+    }
+
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changePassword(Authentication auth, @RequestBody ChangePasswordRequest req) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).build();
+        }
+        authService.changePassword(auth.getName(), req);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteMe(Authentication auth) {
+        if (auth == null || !auth.isAuthenticated()) {
+            return ResponseEntity.status(401).build();
+        }
+        authService.deleteAccount(auth.getName());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/me")
     public ResponseEntity<UserInfoResponse> getMe(Authentication auth) {
         if (auth == null || !auth.isAuthenticated()) {
