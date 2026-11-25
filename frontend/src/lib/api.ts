@@ -51,6 +51,39 @@ export const api = {
     }
   },
 
+  // 내 정보 수정 (이름, 부서)
+  async updateProfile(name: string, department: string): Promise<UserInfo> {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ name, department }),
+    });
+    if (res.status === 401) throw new Error('UNAUTHORIZED');
+    if (!res.ok) throw new Error('내 정보 수정에 실패했습니다.');
+    return res.json();
+  },
+
+  // 비밀번호 변경
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/auth/me/password`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (res.status === 401) throw new Error('UNAUTHORIZED');
+    if (!res.ok) throw new Error('비밀번호 변경에 실패했습니다. 현재 비밀번호를 확인하세요.');
+  },
+
+  // 회원 탈퇴
+  async deleteAccount(): Promise<void> {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      method: 'DELETE',
+      headers: { ...getAuthHeader() },
+    });
+    if (res.status === 401) throw new Error('UNAUTHORIZED');
+    if (!res.ok) throw new Error('회원 탈퇴에 실패했습니다.');
+  },
+
   // 관측소 목록 및 상태 요약
   async getStations(): Promise<StationSummary[]> {
     const res = await fetch(`${API_BASE}/api/stations`, { cache: 'no-store' });
@@ -103,9 +136,10 @@ export const api = {
   async queryRag(query: string, stationCode?: string): Promise<RagResponse> {
     const res = await fetch(`${API_BASE}/api/rag/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ query, stationCode }),
     });
+    if (res.status === 401) throw new Error('UNAUTHORIZED');
     if (!res.ok) throw new Error('방재 AI 답변 생성 실패');
     return res.json();
   },

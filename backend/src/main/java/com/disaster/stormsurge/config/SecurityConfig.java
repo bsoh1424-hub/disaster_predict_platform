@@ -46,8 +46,7 @@ public class SecurityConfig {
                     "/api/auth/**",
                     "/api/health",
                     "/api/stations/**",
-                    "/api/cases/**",
-                    "/api/rag/**"
+                    "/api/cases/**"
                 ).permitAll()
                 // 재계산 및 관리자 기능 등은 인증 필요
                 .anyRequest().authenticated()
