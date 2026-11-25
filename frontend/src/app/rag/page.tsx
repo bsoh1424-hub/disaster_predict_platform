@@ -190,7 +190,7 @@ export default function RagPage() {
               <button
                 type="button"
                 onClick={() => handleQuickQuestion('현재 수위가 주의보 기준을 넘으면 어떤 조치를 해야 하나요?')}
-                className="btn btn-outline-secondary btn-sm text-nowrap rounded-pill"
+                className="btn btn-outline-secondary btn-sm text-nowrap rounded-pill flex-shrink-0"
                 style={{ fontSize: '0.75rem' }}
               >
                 🚨 주의보 기준 조치요령
@@ -198,7 +198,7 @@ export default function RagPage() {
               <button
                 type="button"
                 onClick={() => handleQuickQuestion('총 수위와 조위 편차(잔차)의 차이가 무엇인가요?')}
-                className="btn btn-outline-secondary btn-sm text-nowrap rounded-pill"
+                className="btn btn-outline-secondary btn-sm text-nowrap rounded-pill flex-shrink-0"
                 style={{ fontSize: '0.75rem' }}
               >
                 📖 총수위 vs 잔차 개념
@@ -206,7 +206,7 @@ export default function RagPage() {
               <button
                 type="button"
                 onClick={() => handleQuickQuestion('만조 시간대와 폭풍해일이 겹치면 위험도가 왜 커지나요?')}
-                className="btn btn-outline-secondary btn-sm text-nowrap rounded-pill"
+                className="btn btn-outline-secondary btn-sm text-nowrap rounded-pill flex-shrink-0"
                 style={{ fontSize: '0.75rem' }}
               >
                 🌊 만조 겹침 위험 메커니즘
