@@ -103,9 +103,10 @@ export const api = {
   async queryRag(query: string, stationCode?: string): Promise<RagResponse> {
     const res = await fetch(`${API_BASE}/api/rag/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
       body: JSON.stringify({ query, stationCode }),
     });
+    if (res.status === 401) throw new Error('UNAUTHORIZED');
     if (!res.ok) throw new Error('방재 AI 답변 생성 실패');
     return res.json();
   },
