@@ -492,9 +492,8 @@ def main(argv=None):
     if not args.dry_run:
         cfg = get_db_config()
         print(f"DB: {cfg['user']}@{cfg['host']}:{cfg['port']}/{cfg['database']}")
-        if cfg["database"] == "storm_surge":
-            print("[경고] DB 이름이 storm_surge입니다. Repo A DB일 수 있습니다. "
-                  "Repo B는 storm_surge_team을 써야 합니다.", file=sys.stderr)
+        if cfg["database"] != "storm_surge_team":
+            print("[경고] storm_surge_team을 써야 합니다.", file=sys.stderr)
         conn = connect_db(cfg)
 
     total_inserted = 0
