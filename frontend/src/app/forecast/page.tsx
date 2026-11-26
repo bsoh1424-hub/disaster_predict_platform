@@ -69,6 +69,23 @@ function ForecastContent() {
     }
   };
 
+  // 전체 관측소 재계산
+  const handleRecalculateAll = async () => {
+    if (recalculating) return;
+    setRecalculating(true);
+    try {
+      await api.runBatch();
+      const updatedStations = await api.getStations();
+      setStations(updatedStations);
+      const data = await api.getForecast(selectedStation);
+      setForecast(data);
+    } catch (err: unknown) {
+      alert('전체 재계산 중 오류가 발생했습니다: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   return (
     <div>
       {/* 상단 타이틀 & 관측소 선택기 */}
@@ -116,6 +133,12 @@ function ForecastContent() {
             >
               <i className="bi bi-arrow-repeat"></i>
               <span>{recalculating ? '재계산 중...' : '실시간 재계산 (A1)'}</span>
+            </button>
+            <button 
+              onClick={handleRecalculateAll} 
+              disabled={recalculating}
+            >
+              전체 재계산
             </button>
           </div>
         </div>

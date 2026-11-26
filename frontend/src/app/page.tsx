@@ -25,6 +25,29 @@ export default function HomePage() {
   const [regionFilter, setRegionFilter] = useState<string>('전체');
   const [viewMode, setViewMode] = useState<'map' | 'grid'>('map');
   const [selectedStation, setSelectedStation] = useState<StationSummary | null>(null);
+  const [recalculating, setRecalculating] = useState<boolean>(false);
+
+  const handleRecalculateAll = async () => {
+    if (recalculating) return;
+    setRecalculating(true);
+    try {
+      await api.runBatch();
+      const data = await api.getStations();
+      setStations(data);
+      if (data.length > 0) {
+        const sorted = [...data].sort((a, b) => {
+          const score = (lvl: string) => lvl === 'WARNING' ? 3 : lvl === 'ADVISORY' ? 2 : 1;
+          return score(b.alertLevel) - score(a.alertLevel);
+        });
+        setSelectedStation(sorted[0]);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('전체 재계산 중 오류가 발생했습니다.');
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -146,24 +169,35 @@ export default function HomePage() {
           </span>
         </div>
 
-        {/* 뷰 모드 전환 버튼 (지도 뷰 vs 카드 그리드 뷰) */}
-        <div className="btn-group shadow-sm" role="group">
+        <div className="d-flex align-items-center gap-2">
           <button
             type="button"
-            onClick={() => setViewMode('map')}
-            className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'map' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+            onClick={handleRecalculateAll}
+            disabled={recalculating}
+            className="btn btn-sm btn-primary"
           >
-            <i className="bi bi-map"></i>
-            <span>대한민국 지도 뷰</span>
+            전체 재계산
           </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('grid')}
-            className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'grid' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
-          >
-            <i className="bi bi-grid-3x3-gap"></i>
-            <span>격자 카드 뷰</span>
-          </button>
+
+          {/* 뷰 모드 전환 버튼 (지도 뷰 vs 카드 그리드 뷰) */}
+          <div className="btn-group shadow-sm" role="group">
+            <button
+              type="button"
+              onClick={() => setViewMode('map')}
+              className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'map' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+            >
+              <i className="bi bi-map"></i>
+              <span>대한민국 지도 뷰</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'grid' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+            >
+              <i className="bi bi-grid-3x3-gap"></i>
+              <span>격자 카드 뷰</span>
+            </button>
+          </div>
         </div>
       </div>
 
