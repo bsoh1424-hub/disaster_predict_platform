@@ -51,8 +51,8 @@ public class StationService {
             Double advisory = th != null ? th.getAdvisoryCm() : 200.0;
             Double warning = th != null ? th.getWarningCm() : 250.0;
 
-            // 최신 관측값 (실시간 현황) — 없으면 null (기본값을 넣지 않음)
-            Optional<TideObservation> latestObs = observationRepository.findTopByStationCodeOrderByObsTimeDesc(s.getStationCode());
+            // 최신 관측값 (실시간 현황) — 실측이 있는 행만 (오늘·미래 시간 행은 실측이 비어 있어 제외). 없으면 null (기본값을 넣지 않음)
+            Optional<TideObservation> latestObs = observationRepository.findTopByStationCodeAndTideObsCmIsNotNullOrderByObsTimeDesc(s.getStationCode());
             Double obsTide = latestObs.map(TideObservation::getTideObsCm).orElse(null);
             LocalDateTime obsTime = latestObs.map(TideObservation::getObsTime).orElse(null);
 
