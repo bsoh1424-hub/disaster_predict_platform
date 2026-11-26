@@ -1,13 +1,15 @@
 'use client';
 
 import React from 'react';
-import { ForecastPoint } from '../types/api';
+import { ForecastPoint, ObservationPoint } from '../types/api';
 
 interface DoubleCurveChartProps {
   points: ForecastPoint[];
   advisoryThreshold: number;
   warningThreshold: number;
   stationName: string;
+  history?: ObservationPoint[];
+  baseTime?: string;
 }
 
 export default function DoubleCurveChart({
@@ -15,6 +17,8 @@ export default function DoubleCurveChart({
   advisoryThreshold,
   warningThreshold,
   stationName,
+  history,
+  baseTime,
 }: DoubleCurveChartProps) {
   if (!points || points.length === 0) {
     return (
@@ -24,11 +28,36 @@ export default function DoubleCurveChart({
     );
   }
 
-  // 스케일 계산
-  const allTotalTides = points.map((p) => p.totalTideCm);
+  // ---- 과거 관측값 정리 (실측이 없는 행은 제외) ----
+  const hist = (history ?? []).filter(
+    (h) =>
+      (typeof h.tideObsCm === 'number' && !isNaN(h.tideObsCm)) ||
+      (typeof h.tidePredCm === 'number' && !isNaN(h.tidePredCm))
+  );
+  const histObs = hist.filter((h) => typeof h.tideObsCm === 'number' && !isNaN(h.tideObsCm));
+  const histAstro = hist.filter((h) => typeof h.tidePredCm === 'number' && !isNaN(h.tidePredCm));
+
+  // ---- 시간 축 (과거 24h + 예측 12h/24h) ----
+  const toMs = (s: string) => Date.parse(s);
+  const histTimes = hist.map((h) => toMs(h.obsTime)).filter((t) => !isNaN(t));
+  const predTimes = points.map((p) => toMs(p.targetTime)).filter((t) => !isNaN(t));
+  const allTimes = [...histTimes, ...predTimes];
+  const tMin = allTimes.length > 0 ? Math.min(...allTimes) : 0;
+  const tMax = allTimes.length > 0 ? Math.max(...allTimes) : 1;
+  const tSpan = tMax - tMin || 1;
+
+  // ---- 스케일 계산 (과거 관측값도 포함) ----
+  const allTotalTides = [
+    ...points.map((p) => p.totalTideCm),
+    ...histObs.map((h) => h.tideObsCm as number),
+  ];
+  const allAstro = [
+    ...points.map((p) => p.astronomicalTideCm),
+    ...histAstro.map((h) => h.tidePredCm as number),
+  ];
   const allResiduals = points.map((p) => p.residualCm);
-  const maxTide = Math.max(...allTotalTides, warningThreshold + 20, 100);
-  const minTide = Math.min(...points.map((p) => p.astronomicalTideCm - 20), 0);
+  const maxTide = Math.max(...allTotalTides, ...allAstro, warningThreshold + 20, 100);
+  const minTide = Math.min(...allAstro.map((v) => v - 20), 0);
 
   const maxResidual = Math.max(...allResiduals, 45);
   const minResidual = Math.min(...allResiduals, -10, 0);
@@ -51,30 +80,54 @@ export default function DoubleCurveChart({
     return paddingTop + chartH - ((val - minResidual) / (maxResidual - minResidual || 1)) * (chartH * 0.42);
   };
 
-  const getX = (index: number) => {
-    if (points.length === 1) return paddingLeft + chartW / 2;
-    return paddingLeft + (index / (points.length - 1)) * chartW;
-  };
+  // X 좌표 환산 (시간 기준)
+  const getX = (timeMs: number) => paddingLeft + ((timeMs - tMin) / tSpan) * chartW;
 
-  // SVG 패스
-  const totalPath = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getYTotal(p.totalTideCm)}`)
+  // "현재" 경계 (예측 기준 시각, 없으면 가장 최근 관측 시각)
+  const baseMs = baseTime ? Date.parse(baseTime) : NaN;
+  const nowMs = !isNaN(baseMs) ? baseMs : histTimes.length > 0 ? Math.max(...histTimes) : NaN;
+  const showNow = histTimes.length > 0 && !isNaN(nowMs) && nowMs >= tMin && nowMs <= tMax;
+  const nowX = showNow ? getX(nowMs) : 0;
+
+  // 과거 관측 선 (폴리라인 — 실제 측정값이라 선으로 연결)
+  const histObsPath = histObs
+    .map((h, i) => `${i === 0 ? 'M' : 'L'} ${getX(toMs(h.obsTime))} ${getYTotal(h.tideObsCm as number)}`)
     .join(' ');
-
-  const totalAreaPath = `${totalPath} L ${getX(points.length - 1)} ${paddingTop + chartH} L ${getX(0)} ${paddingTop + chartH} Z`;
-
-  const astroPath = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getYTotal(p.astronomicalTideCm)}`)
+  const histAstroPath = histAstro
+    .map((h, i) => `${i === 0 ? 'M' : 'L'} ${getX(toMs(h.obsTime))} ${getYTotal(h.tidePredCm as number)}`)
     .join(' ');
-
-  const residualPath = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)} ${getYResidual(p.residualCm)}`)
-    .join(' ');
-
-  const residualAreaPath = `${residualPath} L ${getX(points.length - 1)} ${paddingTop + chartH} L ${getX(0)} ${paddingTop + chartH} Z`;
 
   const advisoryY = getYTotal(advisoryThreshold);
   const warningY = getYTotal(warningThreshold);
+
+  // 시간 라벨 포맷 (MM/DD HH:mm)
+  const fmtTime = (ms: number) => {
+    const d = new Date(ms);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${mm}/${dd} ${hh}:${mi}`;
+  };
+
+  // X축 시간 눈금 (3시간 간격 — 어느 시점의 점인지 알 수 있게)
+  const fmtTick = (ms: number) => {
+    const d = new Date(ms);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${hh}:${mi}`;
+  };
+  const tickIntervalMs = 3 * 60 * 60 * 1000;
+  const tickTimes: number[] = [];
+  for (let t = tMin; t <= tMax; t += tickIntervalMs) {
+    tickTimes.push(t);
+  }
+  const predXs = points.map((p) => getX(toMs(p.targetTime)));
+  const startX = getX(tMin);
+  const tickTooClose = (x: number) => {
+    if (Math.abs(x - startX) < 70) return true;
+    return predXs.some((px) => Math.abs(x - px) < 70);
+  };
 
   return (
     <div className="card shadow-sm mb-3">
@@ -82,22 +135,26 @@ export default function DoubleCurveChart({
       <div className="card-header d-flex flex-wrap align-items-center justify-content-between py-2 px-3 bg-white">
         <div className="d-flex align-items-center gap-2">
           <i className="bi bi-graph-up text-primary fs-6"></i>
-          <span className="fw-bold text-dark fs-6">{stationName} 연안 이중 출력 예측 곡선</span>
+          <span className="fw-bold text-dark fs-6">{stationName} 연안 이중 출력 예측 시점</span>
           <span className="badge bg-light text-secondary border">PRD Q7 &middot; F1</span>
         </div>
 
         {/* 범례 (Bootstrap Badges) */}
         <div className="d-flex flex-wrap align-items-center gap-2" style={{ fontSize: '0.78rem' }}>
+          <span className="badge bg-light text-secondary border d-flex align-items-center gap-1">
+            <span style={{ width: 14, height: 3, backgroundColor: '#0d6efd', display: 'inline-block' }}></span>
+            과거 실측 (24h)
+          </span>
           <span className="badge bg-primary-subtle text-primary border border-primary-subtle d-flex align-items-center gap-1">
-            <span style={{ width: 12, height: 3, backgroundColor: '#0d6efd', display: 'inline-block' }}></span>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: '#0d6efd', display: 'inline-block' }}></span>
             총 수위(cm)
           </span>
           <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle d-flex align-items-center gap-1">
-            <span style={{ width: 12, height: 3, backgroundColor: '#6c757d', borderTop: '1px dashed #000', display: 'inline-block' }}></span>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: '#adb5bd', display: 'inline-block' }}></span>
             천문조(cm)
           </span>
           <span className="badge bg-purple-subtle text-purple border d-flex align-items-center gap-1" style={{ backgroundColor: '#f3e8ff', color: '#6f42c1' }}>
-            <span style={{ width: 12, height: 3, backgroundColor: '#6f42c1', display: 'inline-block' }}></span>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: '#6f42c1', display: 'inline-block' }}></span>
             잔차(cm)
           </span>
           <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
@@ -113,18 +170,6 @@ export default function DoubleCurveChart({
       <div className="card-body p-3">
         <div className="w-100 overflow-auto">
           <svg viewBox={`0 0 ${width} ${height}`} className="w-100 select-none" style={{ minWidth: 680 }}>
-            <defs>
-              <linearGradient id="bsTotalTideGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#0d6efd" stopOpacity="0.22" />
-                <stop offset="100%" stopColor="#0d6efd" stopOpacity="0.0" />
-              </linearGradient>
-
-              <linearGradient id="bsResidualGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#6f42c1" stopOpacity="0.18" />
-                <stop offset="100%" stopColor="#6f42c1" stopOpacity="0.0" />
-              </linearGradient>
-            </defs>
-
             {/* 그리드 가이드라인 */}
             {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
               const y = paddingTop + chartH * ratio;
@@ -143,8 +188,8 @@ export default function DoubleCurveChart({
             {advisoryY >= paddingTop && advisoryY <= paddingTop + chartH && (
               <g>
                 <line x1={paddingLeft} y1={advisoryY} x2={width - paddingRight} y2={advisoryY} stroke="#ffc107" strokeWidth="1.5" strokeDasharray="4 3" />
-                <rect x={width - paddingRight + 5} y={advisoryY - 8} width="75" height="16" rx="3" fill="#fff3cd" stroke="#ffe69c" />
-                <text x={width - paddingRight + 42} y={advisoryY + 4} textAnchor="middle" fill="#664d03" fontSize="9" fontWeight="bold">
+                <rect x={width - paddingRight + 2} y={advisoryY - 8} width="56" height="16" rx="3" fill="#fff3cd" stroke="#ffe69c" />
+                <text x={width - paddingRight + 30} y={advisoryY + 4} textAnchor="middle" fill="#664d03" fontSize="9" fontWeight="bold">
                   주의보 {advisoryThreshold}
                 </text>
               </g>
@@ -154,30 +199,62 @@ export default function DoubleCurveChart({
             {warningY >= paddingTop && warningY <= paddingTop + chartH && (
               <g>
                 <line x1={paddingLeft} y1={warningY} x2={width - paddingRight} y2={warningY} stroke="#dc3545" strokeWidth="2" strokeDasharray="3 2" />
-                <rect x={width - paddingRight + 5} y={warningY - 8} width="75" height="16" rx="3" fill="#f8d7da" stroke="#f5c2c7" />
-                <text x={width - paddingRight + 42} y={warningY + 4} textAnchor="middle" fill="#842029" fontSize="9" fontWeight="bold">
+                <rect x={width - paddingRight + 2} y={warningY - 8} width="56" height="16" rx="3" fill="#f8d7da" stroke="#f5c2c7" />
+                <text x={width - paddingRight + 30} y={warningY + 4} textAnchor="middle" fill="#842029" fontSize="9" fontWeight="bold">
                   경보 {warningThreshold}
                 </text>
               </g>
             )}
 
-            {/* 면적 채우기 */}
-            <path d={totalAreaPath} fill="url(#bsTotalTideGrad)" />
-            <path d={residualAreaPath} fill="url(#bsResidualGrad)" />
+            {/* 과거 관측 실측 선 (실제 측정값이라 선으로 연결) */}
+            {histObsPath && (
+              <path d={histObsPath} fill="none" stroke="#0d6efd" strokeWidth="2.5" strokeLinecap="round" />
+            )}
+            {histAstroPath && (
+              <path d={histAstroPath} fill="none" stroke="#adb5bd" strokeWidth="2" strokeDasharray="4 3" />
+            )}
 
-            {/* 천문조 곡선 */}
-            <path d={astroPath} fill="none" stroke="#adb5bd" strokeWidth="2" strokeDasharray="4 3" />
+            {/* 과거 관측 점 마커 (작은 점) */}
+            {histObs.map((h) => (
+              <circle key={`obs-${h.obsTime}`} cx={getX(toMs(h.obsTime))} cy={getYTotal(h.tideObsCm as number)} r="2.5" fill="#0d6efd" />
+            ))}
 
-            {/* 잔차 곡선 (보라색) */}
-            <path d={residualPath} fill="none" stroke="#6f42c1" strokeWidth="2.5" strokeLinecap="round" />
+            {/* "현재" 경계선 (과거/예측 구분) */}
+            {showNow && (
+              <g>
+                <line x1={nowX} y1={paddingTop} x2={nowX} y2={paddingTop + chartH} stroke="#495057" strokeWidth="1.5" />
+                <text x={nowX} y={paddingTop - 8} textAnchor="middle" fill="#495057" fontSize="10" fontWeight="bold">
+                  현재
+                </text>
+              </g>
+            )}
 
-            {/* 총 수위 곡선 (파란색) */}
-            <path d={totalPath} fill="none" stroke="#0d6efd" strokeWidth="3.5" strokeLinecap="round" />
+            {/* 과거 시작 시간 라벨 */}
+            {histTimes.length > 0 && (
+              <text x={getX(tMin)} y={paddingTop + chartH + 18} textAnchor="middle" fill="#6c757d" fontSize="10">
+                {fmtTime(tMin)}
+              </text>
+            )}
 
-            {/* 포인트 마커 및 수치 라벨 */}
-            {points.map((p, i) => {
-              const cx = getX(i);
+            {/* X축 시간 눈금 (3시간 간격 — 예측 라벨과 겹치는 위치는 생략) */}
+            {tickTimes.map((t) => {
+              const tx = getX(t);
+              if (tickTooClose(tx)) return null;
+              return (
+                <g key={`tick-${t}`}>
+                  <line x1={tx} y1={paddingTop + chartH} x2={tx} y2={paddingTop + chartH + 4} stroke="#adb5bd" strokeWidth="1" />
+                  <text x={tx} y={paddingTop + chartH + 18} textAnchor="middle" fill="#6c757d" fontSize="10">
+                    {fmtTick(t)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* 예측 시점 마커 및 수치 라벨 (B1: 선 없이 점만 — 두 시점 사이를 직선으로 잇지 않음) */}
+            {points.map((p) => {
+              const cx = getX(toMs(p.targetTime));
               const cyTotal = getYTotal(p.totalTideCm);
+              const cyAstro = getYTotal(p.astronomicalTideCm);
               const cyRes = getYResidual(p.residualCm);
               const timeLabel = `${p.leadHour}h 리드타임 (${p.targetTime.substring(11, 16)})`;
 
@@ -191,6 +268,9 @@ export default function DoubleCurveChart({
                     {timeLabel}
                   </text>
 
+                  {/* 천문조 마커 */}
+                  <circle cx={cx} cy={cyAstro} r="4" fill="#adb5bd" stroke="#fff" strokeWidth="2" />
+
                   {/* 총 수위 마커 & 레이블 */}
                   <circle cx={cx} cy={cyTotal} r="6" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} stroke="#fff" strokeWidth="2.5" />
                   <rect x={cx - 28} y={cyTotal - 24} width="56" height="18" rx="4" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} />
@@ -198,10 +278,10 @@ export default function DoubleCurveChart({
                     {p.totalTideCm}cm
                   </text>
 
-                  {/* 잔차 마커 & 레이블 */}
+                  {/* 잔차 마커 & 레이블 (라벨을 마커 위로 — 아래 초과율 배지와 겹치지 않게) */}
                   <circle cx={cx} cy={cyRes} r="4" fill="#6f42c1" stroke="#fff" strokeWidth="2" />
-                  <rect x={cx - 22} y={cyRes + 8} width="44" height="16" rx="3" fill="#f3e8ff" stroke="#d8b4fe" />
-                  <text x={cx} y={cyRes + 20} textAnchor="middle" fill="#6f42c1" fontSize="9" fontWeight="bold" className="font-monospace">
+                  <rect x={cx - 22} y={cyRes - 24} width="44" height="16" rx="3" fill="#f3e8ff" stroke="#d8b4fe" />
+                  <text x={cx} y={cyRes - 12} textAnchor="middle" fill="#6f42c1" fontSize="9" fontWeight="bold" className="font-monospace">
                     +{p.residualCm}
                   </text>
 
