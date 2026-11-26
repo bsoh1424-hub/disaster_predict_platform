@@ -1,4 +1,4 @@
-import os, json, urllib.request, urllib.parse
+import os, json, urllib.request, urllib.parse, time
 from pathlib import Path
 from datetime import date, timedelta
 import pymysql
@@ -10,11 +10,11 @@ MAPPING = {
     "ULSAN": "22189",
     "POHANG": "22106",
     "YEOSU": "22103",
-    "PYEONGTAEK": "22101",  
-    "MOKPO": "22184",       
-    "BORYEONG": "22101",   
-    "GUNSAN": "22101",      
-    "JEJU": "22187",     
+    "PYEONGTAEK": "22101",
+    "MOKPO": "22184",
+    "BORYEONG": "22101",
+    "GUNSAN": "22101",
+    "JEJU": "22187",
 }
 
 def load_env():
@@ -39,12 +39,21 @@ def fetch_day(stn, day):
         "stn": stn, "authKey": KEY, "disp": "1",
     }
     url = "https://apihub.kma.go.kr/api/typ01/url/kma_buoy2.php?" + urllib.parse.urlencode(params)
-    with urllib.request.urlopen(url, timeout=30) as r:
-        data = json.loads(r.read().decode("utf-8"))
+    data = None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(url, timeout=30) as r:
+                data = json.loads(r.read().decode("utf-8"))
+            break
+        except Exception as e:
+            print(f"재시도 {attempt+1}/3: {e}")
+            time.sleep(5)
+    if data is None:
+        print(f"{stn} {day} 실패, 건너뜀")
+        return []
     rows = []
     for it in data:
         tm = it.get("TM", "")
-        # 30분 자료는 빼고, 정시만
         if not tm.endswith("00"):
             continue
         rows.append({
@@ -68,25 +77,27 @@ def get_db():
         database=db, charset="utf8mb4", autocommit=False,
     )
 
-# 어제 하루치
-day = date.today() - timedelta(days=1)
-print(f"대상: {day}")
+# 4일치: 11월 22, 23, 24, 25일 (오늘 포함)
+days = [date.today() - timedelta(days=i) for i in (3, 2, 1, 0)]
 
 conn = get_db()
-for station, stn in MAPPING.items():
-    rows = fetch_day(stn, day)
-    print(f"{station} ({stn}): {len(rows)}행 받음")
-    updated = 0
-    with conn.cursor() as cur:
-        for row in rows:
-            ts = f"{row['tm'][:4]}-{row['tm'][4:6]}-{row['tm'][6:8]} {row['tm'][8:10]}:{row['tm'][10:12]}:00"
-            cur.execute(
-                "UPDATE tide_observation SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s WHERE station_code=%s AND obs_time=%s",
-                (row["pa"], row["ws"], row["wd"], station, ts),
-            )
-            updated += cur.rowcount
-    conn.commit()
-    print(f"{station}: {updated}행 업데이트됨")
+for day in days:
+    print(f"대상: {day}")
+    for station, stn in MAPPING.items():
+        rows = fetch_day(stn, day)
+        time.sleep(1)
+        print(f"{station} ({stn}): {len(rows)}행 받음")
+        updated = 0
+        with conn.cursor() as cur:
+            for row in rows:
+                ts = f"{row['tm'][:4]}-{row['tm'][4:6]}-{row['tm'][6:8]} {row['tm'][8:10]}:{row['tm'][10:12]}:00"
+                cur.execute(
+                    "UPDATE tide_observation SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s WHERE station_code=%s AND obs_time=%s",
+                    (row["pa"], row["ws"], row["wd"], station, ts),
+                )
+                updated += cur.rowcount
+        conn.commit()
+        print(f"{station}: {updated}행 업데이트됨")
 
 conn.close()
 print("완료")
