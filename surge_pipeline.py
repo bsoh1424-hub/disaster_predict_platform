@@ -34,6 +34,12 @@
 #   교체가 일어나면 challenger.pt가 champion.pt가 되고, 다음 실행부터
 #   그 새 챔피언을 불러와.
 #
+# ★ 5일 비교 수정 (2026-11-25) - compare_and_swap에서 날짜별로 먼저 묶음 ★
+#   daily_error는 시간마다 1줄씩 저장해서(3498줄), tail(5)를 그대로 쓰면
+#   마지막 날 5시간만 보게 돼. 그래서 "확인한 날짜: 1일"이 떴어.
+#   이제 날짜별 MAE 평균을 낸 뒤 최근 5일을 가져와서 진짜 5일 평균을 비교해.
+#   model_daily_error.csv는 그대로 시간 단위로 저장해.
+#
 # ============================================================
 # 0. 설정 - 여기만 바꾸면 돼
 # ============================================================
@@ -48,9 +54,13 @@ import torch
 import torch.nn as nn
 
 # DATA_MODE: "csv"면 merged CSV로 돌리고, "db"면 아래 DB에서 가져와.
-# ★ DB로 바꾸려면: DB_PASSWORD를 채우고, weather_observation 컬럼 이름을 확인한 뒤
-#   이 줄을 DATA_MODE = "db"로 바꿔. 그 전에는 "csv" 그대로 둬.
-DATA_MODE = "csv"
+# ★ DB로 바꿈 (2026-11-26 집 PC) - tide_observation만 써.
+#   weather_observation 테이블은 없어. load_kma.py는 기상을
+#   tide_observation에 UPDATE로 채우니까, 기압·풍속·풍향은
+#   tide_observation 컬럼에서 직접 가져와.
+#   wind_gust_ms·wave_height_m 컬럼은 tide_observation에 없어서 NULL로 둬.
+#   11개 지역 전부 가져와. 지역마다 따로 윈도우를 만들어서 합쳐.
+DATA_MODE = "db"
 
 # CSV 경로 - 여러 위치를 순서대로 찾아봐.
 # (DB 모드에서는 CSV가 필요 없어서, 이 찾기는 CSV 모드일 때만 실행돼.)
@@ -66,32 +76,28 @@ def find_csv(*candidates):
 DB_HOST = "localhost"       # 학원 DB 주소
 DB_PORT = 3307              # 학원 MariaDB 포트 (숫자)
 DB_USER = "surge"           # 학원 DB 사용자
-DB_PASSWORD = ""            # ★ 빈칸: .env에 있는 거. 네가 직접 넣어.
+DB_PASSWORD = "surge"            # ★ 빈칸: .env에 있는 거. 네가 직접 넣어.
 DB_NAME = "storm_surge_team"  # 학원 DB 이름
 
-# DB 쿼리 - tide_observation + weather_observation JOIN
-#   tide_observation에는 조위만 있어. 기압·풍속·풍향은 NULL이고,
-#   wind_gust_ms·wave_height_m 컬럼은 아예 없어.
-#   그래서 날씨 5개 컬럼(기압·풍속·순간풍속·풍향·파고)은
-#   weather_observation 테이블에서 가져와야 해.
-# ★ weather_observation 컬럼 이름은 아직 미확인 - HeidiSQL에서 확인하고 맞춰줘.
-#   아래 w. 뒤에 오는 이름 5개랑, JOIN 조건(w.obs_time, w.station_code)이
-#   실제 테이블이랑 다르면 그 부분만 고치면 돼.
+# DB 쿼리 - tide_observation, 11개 지역 전부 (2026-11-26 DB 모드 수정)
+#   weather_observation 테이블은 없어. load_kma.py가 기상(기압·풍속·풍향)을
+#   tide_observation에 UPDATE로 채워서, 그 컬럼을 직접 읽어.
+#   wind_gust_ms·wave_height_m은 tide_observation에 컬럼이 없어서 NULL로 둬.
+#   지역 필터는 없어. 11개 지역 전부 가져와서, 지역마다 따로 윈도우를 만들어.
 DB_QUERY = """
 SELECT
-  t.obs_time AS timestamp,
-  t.tide_obs_cm,
-  t.tide_pred_cm,
-  t.residual_cm,
-  w.air_pressure_hpa,
-  w.wind_speed_ms,
-  w.wind_gust_ms,
-  w.wind_dir_deg,
-  w.wave_height_m
-FROM tide_observation t
-LEFT JOIN weather_observation w
-  ON t.obs_time = w.obs_time AND t.station_code = w.station_code
-ORDER BY t.obs_time
+  station_code,
+  obs_time AS timestamp,
+  tide_obs_cm,
+  tide_pred_cm,
+  residual_cm,
+  air_pressure_hpa,
+  wind_speed_ms,
+  NULL AS wind_gust_ms,
+  wind_dir_deg,
+  NULL AS wave_height_m
+FROM tide_observation
+ORDER BY station_code, obs_time
 """
 
 # X(입력) 컬럼 순서 - train_surge.py랑 똑같아. 순서 바뀌면 결과가 완전히 달라져.
@@ -171,8 +177,12 @@ def load_data():
             df = pd.read_sql(DB_QUERY, conn)
         finally:
             conn.close()
-        print("DB에서 데이터를 가져왔습니다:", DB_NAME, "(tide_observation + weather_observation JOIN)")
+        print("DB에서 데이터를 가져왔습니다:", DB_NAME, "(tide_observation, 11개 지역)")
         df["timestamp"] = pd.to_datetime(df["timestamp"])
+        # NULL 채우기 - 기상은 11-22~25만 채워져 있고, 10-25~11-21은 NULL이야.
+        # wind_gust_ms·wave_height_m은 아예 NULL이야. 빈 값은 컬럼 평균으로 채우고,
+        # 전부 빈 컬럼은 0으로 채워. 안 채우면 훈련할 때 NaN이 돼.
+        df[FEATURE_COLS] = df[FEATURE_COLS].fillna(df[FEATURE_COLS].mean()).fillna(0)
     else:
         # CSV에서 가져오기 (지금은 이쪽으로 돌려)
         # 주의: CSV 첫 컬럼은 헤더가 비어 있어 (timestamp가 인덱스로 저장됨). 이름을 붙여줘.
@@ -184,7 +194,8 @@ def load_data():
         df = pd.read_csv(data_file)
         df = df.rename(columns={df.columns[0]: "timestamp"})
         df["timestamp"] = pd.to_datetime(df["timestamp"])
-    df = df.sort_values("timestamp").reset_index(drop=True)
+        df["station_code"] = "BUSAN"  # CSV는 부산 1개 지역만 있어.
+    df = df.sort_values(["station_code", "timestamp"]).reset_index(drop=True)
     print("가져온 데이터 모양:", df.shape)
     print("기간:", df["timestamp"].iloc[0], "~", df["timestamp"].iloc[-1])
     print(df.head())
@@ -248,6 +259,32 @@ def make_windows(df, feature_cols, mean, std, window=WINDOW, target_hours=TARGET
     X = torch.tensor(np.array(X_list), dtype=torch.float32)
     y = torch.tensor(np.array(y_list), dtype=torch.float32)
     return X, y, base_times, t12_times, t24_times, np.array(raw_y12), np.array(raw_y24)
+
+
+def make_windows_all(df, feature_cols, mean, std, window=WINDOW, target_hours=TARGET_HOURS):
+    # 지역마다 따로 윈도우를 만들어서 합쳐. (합친 모델 방식)
+    # 지역을 섞으면 시간이 안 이어져서 윈도우가 깨져. 그래서 지역별로 나눠.
+    all_X, all_y = [], []
+    all_base, all_t12, all_t24 = [], [], []
+    all_raw12, all_raw24 = [], []
+    for station, group in df.groupby("station_code", sort=True):
+        group = group.sort_values("timestamp").reset_index(drop=True)
+        X, y, base, t12, t24, raw12, raw24 = make_windows(
+            group, feature_cols, mean, std, window, target_hours)
+        if len(X) == 0:
+            print(f"  {station}: 윈도우 0개 (데이터가 72시간+24시간보다 짧아)")
+            continue
+        print(f"  {station}: 윈도우 {len(X)}개")
+        all_X.append(X)
+        all_y.append(y)
+        all_base.extend(base)
+        all_t12.extend(t12)
+        all_t24.extend(t24)
+        all_raw12.extend(raw12)
+        all_raw24.extend(raw24)
+    X = torch.cat(all_X) if all_X else torch.empty(0)
+    y = torch.cat(all_y) if all_y else torch.empty(0)
+    return X, y, all_base, all_t12, all_t24, np.array(all_raw12), np.array(all_raw24)
 
 
 def train_model(X_train, y_train, batch_size, epochs=EPOCHS):
@@ -332,9 +369,14 @@ def compare_and_swap(err_df, champ_batch, chall_batch):
     if err_df.empty:
         print("비교할 오차 기록이 없습니다. 먼저 5일치 오차를 쌓아 주세요.")
         return "대기"
+    # 날짜별로 먼저 묶어. (daily_error는 시간마다 1줄씩 저장해서
+    #  tail(5)를 그대로 쓰면 마지막 날 5시간만 보게 돼.
+    #  날짜별 평균을 내야 진짜 5일 평균이 돼.)
+    daily = (err_df.groupby(["date", "model"], as_index=False)["mae"]
+             .mean().sort_values("date"))
     # 모델별로 따로 최근 5일을 가져와.
-    champ_recent = err_df[err_df["model"] == "champion"].tail(COMPETITION_DAYS)
-    chall_recent = err_df[err_df["model"] == "challenger"].tail(COMPETITION_DAYS)
+    champ_recent = daily[daily["model"] == "champion"].tail(COMPETITION_DAYS)
+    chall_recent = daily[daily["model"] == "challenger"].tail(COMPETITION_DAYS)
     champ = champ_recent["mae"].mean()
     chall = chall_recent["mae"].mean()
     if pd.isna(champ) or pd.isna(chall):
@@ -432,12 +474,17 @@ def main():
     train_df = df.iloc[:cut_idx].copy()
     mean = train_df[FEATURE_COLS].values.astype(float).mean(axis=0)
     std = train_df[FEATURE_COLS].values.astype(float).std(axis=0)
+    # ★ std가 0인 컬럼은 0으로 나누면 NaN이 돼.
+    #   wind_gust_ms·wave_height_m은 DB에 없어서 전부 0으로 채워지니까
+    #   std가 0이야. 그런 컬럼은 std를 1로 바꿔. (값이 전부 0이라
+    #   정규화해도 0이라서, 훈련에는 영향이 없어.)
+    std = np.where(std == 0, 1, std)
     print("평균:", dict(zip(FEATURE_COLS, np.round(mean, 3))))
     print("표준편차:", dict(zip(FEATURE_COLS, np.round(std, 3))))
     print("훈련/검사 기준 시간:", cut_time)
 
-    print("=== 3) 윈도우 만들기 (지난 72시간 -> +12h / +24h 편차) ===")
-    X, y, base_times, t12_times, t24_times, raw_y12, raw_y24 = make_windows(df, FEATURE_COLS, mean, std)
+    print("=== 3) 윈도우 만들기 (지역마다 따로, 지난 72시간 -> +12h / +24h 편차) ===")
+    X, y, base_times, t12_times, t24_times, raw_y12, raw_y24 = make_windows_all(df, FEATURE_COLS, mean, std)
     is_train = np.array([t < cut_time for t in t24_times])
     X_train, y_train = X[is_train], y[is_train]
     X_test, y_test = X[~is_train], y[~is_train]
@@ -474,6 +521,8 @@ def main():
     print(f"챌린저 검증 MAE: +12h {mae_chall_12h:.2f}cm / +24h {mae_chall_24h:.2f}cm")
 
     print("=== 7) 결과 저장 ===")
+    # result 폴더가 없으면 torch.save가 실패해. 저장하기 전에 다시 만들어.
+    os.makedirs(RESULT_DIR, exist_ok=True)
     # 챔피언은 이번에 새로 훈련한 경우에만 저장해. 불러온 챔피언은 덮지 않아.
     if champion_trained_now:
         torch.save({"state_dict": champion.state_dict(), "mean": mean, "std": std,

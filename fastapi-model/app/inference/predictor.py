@@ -38,6 +38,7 @@
 import json
 import math
 import os
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -52,6 +53,22 @@ try:
 except Exception:
     pymysql = None
     HAS_PYMYSQL = False
+
+
+# ------------------------------------------------------------
+# base_time 파싱 — 2026-11-26 수정
+# ------------------------------------------------------------
+# Spring이 보내는 시간이 소수점 7자리야.
+#   '2026-11-26T00:32:39.2700522+09:00'
+# Python 3.10의 fromisoformat은 소수점 6자리까지만 받아서
+# 7자리면 "Invalid isoformat string"으로 500이 나.
+# (학원 Python 3.12에서는 됐는데, 집 PC Python 3.10에서는 안 돼.)
+# 해결: 소수점을 6자리로 자른 뒤 fromisoformat으로 읽어.
+# ------------------------------------------------------------
+def _parse_base_time(s: str) -> datetime:
+    s = s.replace("Z", "+00:00")
+    s = re.sub(r"(\.\d{6})\d+", r"\1", s)
+    return datetime.fromisoformat(s)
 
 
 # ------------------------------------------------------------
@@ -325,7 +342,7 @@ class SurgePredictor:
     # --------------------------------------------------------
     def predict(self, station_id: str, base_time_str: str,
                 features: Optional[Dict[str, Any]] = None):
-        base_time = datetime.fromisoformat(base_time_str.replace("Z", "+00:00"))
+        base_time = _parse_base_time(base_time_str)
         if base_time.tzinfo is not None:
             base_time = base_time.replace(tzinfo=None)  # DB는 naive DATETIME
         arr = self._load_72h_from_db(station_id, base_time)
