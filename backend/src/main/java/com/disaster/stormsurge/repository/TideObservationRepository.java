@@ -12,4 +12,7 @@ public interface TideObservationRepository extends JpaRepository<TideObservation
     );
 
     Optional<TideObservation> findTopByStationCodeOrderByObsTimeDesc(String stationCode);
+
+    // 실측값이 있는 최신 관측 (오늘·미래 시간 행은 실측이 비어 있어 제외)
+    Optional<TideObservation> findTopByStationCodeAndTideObsCmIsNotNullOrderByObsTimeDesc(String stationCode);
 }
