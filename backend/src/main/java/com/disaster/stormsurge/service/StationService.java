@@ -34,14 +34,21 @@ public class StationService {
         List<Station> stations = stationRepository.findAll();
         Optional<PredictionRun> latestRun = runRepository.findTopByOrderByExecutedAtDesc();
 
+        // 관측소별 최신 예측 — 각 관측소의 가장 최근 run 결과를 사용.
+        // (이전에는 단일 최신 run만 봐서, 그 run에 없는 관측소는 예측이 있어도 null이 됐다.)
         Map<String, PredictionResult> resultMap = new HashMap<>();
-        if (latestRun.isPresent()) {
-            List<PredictionResult> results = resultRepository.findByRunIdOrderByStationCodeAscLeadHourAsc(latestRun.get().getRunId());
+        List<PredictionRun> recentRuns = runRepository.findTop100ByOrderByExecutedAtDesc();
+        for (PredictionRun run : recentRuns) {
+            List<PredictionResult> results = resultRepository.findByRunIdOrderByStationCodeAscLeadHourAsc(run.getRunId());
             for (PredictionResult r : results) {
-                // 12시간 리드타임 또는 첫 번째 결과를 요약 대표로 사용
-                if (!resultMap.containsKey(r.getStationCode()) || r.getLeadHour() == 12) {
+                // 같은 관측소는 가장 최근 run의 결과만 사용. 한 run 안에서는
+                // leadHour 오름차순(12시간이 먼저)으로 들어와 12시간이 우선된다.
+                if (!resultMap.containsKey(r.getStationCode())) {
                     resultMap.put(r.getStationCode(), r);
                 }
+            }
+            if (resultMap.size() >= stations.size()) {
+                break; // 모든 관측소 채워지면 더 오래된 run은 볼 필요 없음
             }
         }
 
