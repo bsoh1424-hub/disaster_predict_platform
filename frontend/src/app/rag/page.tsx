@@ -14,8 +14,8 @@ export default function RagPage() {
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'bot'; text: string; sources?: string[]; engine?: string }>>([
     {
       sender: 'bot',
-      text: '안녕하세요! 폭풍해일 방재 RAG AI 어시스턴트 전용 페이지입니다.\n\n국립해양조사원 및 기상청 특보 기준, 지자체 행동 지침과 현재 선택된 관측소의 실시간 수위 데이터를 연계하여 전문적인 방재 가이드를 제공합니다. 궁금한 점을 질문해 보세요!',
-      sources: ['국립해양조사원 조석 기준', '행정안전부 국민행동요령'],
+      text: '안녕하세요! 폭풍해일 방재 RAG AI 어시스턴트 전용 페이지입니다.\n\n행정안전부 국민행동요령과 재난·연안 관련 법령을 기준으로 방재 가이드를 제공합니다. 궁금한 점을 질문해 보세요!',
+      sources: ['행정안전부 국민행동요령, 재난및안전관리기본법·연안관리법·풍수해·지진재해보험법'],
       engine: 'Custom-RAG-Ready',
     },
   ]);
@@ -197,11 +197,11 @@ export default function RagPage() {
               </button>
               <button
                 type="button"
-                onClick={() => handleQuickQuestion('총 수위와 조위 편차(잔차)의 차이가 무엇인가요?')}
+                onClick={() => handleQuickQuestion('만조와 폭풍해일이 겹치면 왜 위험한가요?')}
                 className="btn btn-outline-secondary btn-sm text-nowrap rounded-pill"
                 style={{ fontSize: '0.75rem' }}
               >
-                📖 총수위 vs 잔차 개념
+                📖 만조 + 폭풍해일의 위험성
               </button>
               <button
                 type="button"
