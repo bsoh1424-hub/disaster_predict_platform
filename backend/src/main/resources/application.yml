@@ -61,7 +61,7 @@ jwt:
 fastapi:
   base-url: ${FASTAPI_BASE_URL:http://localhost:8000}
   connect-timeout-ms: 3000
-  read-timeout-ms: 5000
+  read-timeout-ms: 120000
 
 logging:
   level:
