@@ -10,11 +10,11 @@ export default function AuthNav() {
   const pathname = usePathname();
 
   useEffect(() => {
-    setLoggedIn(!!localStorage.getItem('token'));
+    setLoggedIn(!!sessionStorage.getItem('token'));
   }, [pathname]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
     setLoggedIn(false);
     router.push('/login');
   };
