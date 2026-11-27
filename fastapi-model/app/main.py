@@ -10,7 +10,7 @@ FASTAPI_ROOT = CURRENT_DIR.parent
 if str(FASTAPI_ROOT) not in sys.path:
     sys.path.insert(0, str(FASTAPI_ROOT))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -103,15 +103,14 @@ def predict_surge(req: PredictRequest):
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 @app.post("/collector/trigger")
-async def trigger_collection(station_id: str):
+async def trigger_collection(station_id: str, background_tasks: BackgroundTasks):
     """
-    수집 모듈 트리거 (KHOA / KMA 데이터 수집)
+    수집 모듈 트리거 (KHOA / KMA 실제 데이터 수집, 비동기)
+    - 즉시 ACCEPTED를 돌려주고 수집은 백그라운드에서 진행한다.
+    - 버튼/배치가 수집을 기다리지 않게 하기 위함. 수집 결과는 서버 로그에 남는다.
     """
-    try:
-        result = await collector.collect_station_data(station_id)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Data collection failed: {str(e)}")
+    background_tasks.add_task(collector.collect_station_data, station_id)
+    return {"status": "ACCEPTED", "station_id": station_id, "message": f"Collection started for {station_id}"}
 
 @app.post("/rag/query")
 async def rag_query(req: RagRequest):

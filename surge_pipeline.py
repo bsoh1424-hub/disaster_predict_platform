@@ -58,7 +58,7 @@ import torch.nn as nn
 #   weather_observation 테이블은 없어. load_kma.py는 기상을
 #   tide_observation에 UPDATE로 채우니까, 기압·풍속·풍향은
 #   tide_observation 컬럼에서 직접 가져와.
-#   wind_gust_ms·wave_height_m 컬럼은 tide_observation에 없어서 NULL로 둬.
+#   wind_gust_ms·wave_height_m은 tide_observation 컬럼에서 직접 가져와 (ALTER로 추가한 뒤).
 #   11개 지역 전부 가져와. 지역마다 따로 윈도우를 만들어서 합쳐.
 DATA_MODE = "db"
 
@@ -82,7 +82,7 @@ DB_NAME = "storm_surge_team"  # 학원 DB 이름
 # DB 쿼리 - tide_observation, 11개 지역 전부 (2026-11-26 DB 모드 수정)
 #   weather_observation 테이블은 없어. load_kma.py가 기상(기압·풍속·풍향)을
 #   tide_observation에 UPDATE로 채워서, 그 컬럼을 직접 읽어.
-#   wind_gust_ms·wave_height_m은 tide_observation에 컬럼이 없어서 NULL로 둬.
+#   wind_gust_ms·wave_height_m은 tide_observation 컬럼에서 직접 읽어.
 #   지역 필터는 없어. 11개 지역 전부 가져와서, 지역마다 따로 윈도우를 만들어.
 DB_QUERY = """
 SELECT
@@ -93,9 +93,9 @@ SELECT
   residual_cm,
   air_pressure_hpa,
   wind_speed_ms,
-  NULL AS wind_gust_ms,
+  wind_gust_ms,
   wind_dir_deg,
-  NULL AS wave_height_m
+  wave_height_m
 FROM tide_observation
 ORDER BY station_code, obs_time
 """
@@ -180,7 +180,7 @@ def load_data():
         print("DB에서 데이터를 가져왔습니다:", DB_NAME, "(tide_observation, 11개 지역)")
         df["timestamp"] = pd.to_datetime(df["timestamp"])
         # NULL 채우기 - 기상은 11-22~25만 채워져 있고, 10-25~11-21은 NULL이야.
-        # wind_gust_ms·wave_height_m은 아예 NULL이야. 빈 값은 컬럼 평균으로 채우고,
+        # 빈 값(아직 안 들어온 돌풍·파고 등)은 컬럼 평균으로 채우고,
         # 전부 빈 컬럼은 0으로 채워. 안 채우면 훈련할 때 NaN이 돼.
         df[FEATURE_COLS] = df[FEATURE_COLS].fillna(df[FEATURE_COLS].mean()).fillna(0)
     else:
@@ -475,8 +475,8 @@ def main():
     mean = train_df[FEATURE_COLS].values.astype(float).mean(axis=0)
     std = train_df[FEATURE_COLS].values.astype(float).std(axis=0)
     # ★ std가 0인 컬럼은 0으로 나누면 NaN이 돼.
-    #   wind_gust_ms·wave_height_m은 DB에 없어서 전부 0으로 채워지니까
-    #   std가 0이야. 그런 컬럼은 std를 1로 바꿔. (값이 전부 0이라
+    #   (예: 아직 값이 안 들어온 기간엔 돌풍·파고가 전부 0으로 채워져서
+    #   std가 0이야.) 그런 컬럼은 std를 1로 바꿔. (값이 전부 0이라
     #   정규화해도 0이라서, 훈련에는 영향이 없어.)
     std = np.where(std == 0, 1, std)
     print("평균:", dict(zip(FEATURE_COLS, np.round(mean, 3))))

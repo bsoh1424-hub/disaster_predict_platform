@@ -57,4 +57,16 @@ public class ForecastController {
         batchSchedulerService.runBatchNow();
         return ResponseEntity.ok("Hourly batch prediction triggered successfully.");
     }
+
+    /**
+     * 최신 데이터 새로고침 (대시보드 "최신 데이터" 버튼용).
+     * KHOA 조위 + KMA 부이 데이터를 전 관측소에 대해 다시 받아온다.
+     * 수집은 FastAPI 백그라운드에서 진행되므로 즉시 돌아온다.
+     * 1~2분 뒤 화면을 새로고침하면 반영된 데이터를 볼 수 있다.
+     */
+    @PostMapping("/data/refresh")
+    public ResponseEntity<String> refreshData() {
+        batchSchedulerService.refreshDataNow();
+        return ResponseEntity.ok("Data refresh started for all stations.");
+    }
 }
