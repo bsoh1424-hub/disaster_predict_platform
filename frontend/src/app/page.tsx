@@ -26,6 +26,7 @@ export default function HomePage() {
   const [viewMode, setViewMode] = useState<'map' | 'grid'>('map');
   const [selectedStation, setSelectedStation] = useState<StationSummary | null>(null);
   const [recalculating, setRecalculating] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
 
   const handleRecalculateAll = async () => {
     if (recalculating) return;
@@ -46,6 +47,20 @@ export default function HomePage() {
       alert('전체 재계산 중 오류가 발생했습니다.');
     } finally {
       setRecalculating(false);
+    }
+  };
+
+  const handleRefreshData = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await api.refreshData();
+      alert('최신 데이터 가져오기를 시작했습니다. 1~2분 뒤 새로고침하면 반영됩니다.');
+    } catch (e) {
+      console.error(e);
+      alert('최신 데이터 가져오기 중 오류가 발생했습니다.');
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -170,6 +185,14 @@ export default function HomePage() {
         </div>
 
         <div className="d-flex align-items-center gap-2">
+          <button
+            type="button"
+            onClick={handleRefreshData}
+            disabled={refreshing}
+            className="btn btn-sm btn-outline-primary"
+          >
+            {refreshing ? '가져오는 중...' : '최신 데이터'}
+          </button>
           <button
             type="button"
             onClick={handleRecalculateAll}

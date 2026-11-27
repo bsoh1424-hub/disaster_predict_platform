@@ -131,6 +131,19 @@ export const api = {
     return res.text();
   },
 
+  // 최신 데이터 새로고침 (KHOA 조위 + KMA 부이, 전 관측소)
+  async refreshData(): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/data/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) throw new Error('최신 데이터 새로고침 요청 실패');
+    return res.text();
+  },
+
   // 태풍 사례 목록 (Q6)
   async getTyphoonCases(): Promise<TyphoonCaseSummary[]> {
     const res = await fetch(`${API_BASE}/api/cases`, { cache: 'no-store' });
