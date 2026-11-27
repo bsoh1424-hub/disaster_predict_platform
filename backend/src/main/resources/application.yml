@@ -56,7 +56,7 @@ spring:
 # 공통 설정
 jwt:
   secret: c3Rvcm0tc3VyZ2UtcHJlZGljdC1wbGF0Zm9ybS1zZWNyZXQta2V5LTIwMjYtc3ByaW5nLWJvb3Qtand0IQ==
-  expiration-ms: 86400000
+  expiration-ms: 600000
 
 fastapi:
   base-url: ${FASTAPI_BASE_URL:http://localhost:8000}
