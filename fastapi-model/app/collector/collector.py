@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # 실제 데이터 수집 모듈 (스텁 교체본)
 # - KHOA 실측·예측 조위 (tide_observation 행 생성: 조위·잔차)
-# - KMA 해양기상부이 (기압·풍속·풍향 UPDATE: 이미 있는 행에만 채움)
+# - KMA 해양기상부이 (기압·풍속·풍향·돌풍·파고 UPDATE: 이미 있는 행에만 채움)
 # - 버튼/배치가 부르는 단위: 관측소 1개, 어제+오늘 2일치
 # - KMA는 보조라 실패해도 KHOA 결과를 살린다 (경고만 남김)
 # ---------------------------------------------------------------------------
@@ -68,7 +68,8 @@ DELETE_DAY_SQL = (
 )
 UPDATE_WEATHER_SQL = (
     "UPDATE tide_observation "
-    "SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s "
+    "SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s, "
+    "wind_gust_ms=%s, wave_height_m=%s "
     "WHERE station_code=%s AND obs_time=%s"
 )
 
@@ -309,7 +310,9 @@ def fetch_buoy_day(api_key, stn, day, timeout=30):
             "tm": tm,
             "wd": it.get("WD1"),
             "ws": it.get("WS1"),
+            "gst": it.get("WS1_GST"),
             "pa": it.get("PA"),
+            "wh": it.get("WH_SIG"),
         })
     return rows
 
@@ -322,7 +325,7 @@ def update_weather_day(conn, station_code, rows):
             ts = f"{row['tm'][:4]}-{row['tm'][4:6]}-{row['tm'][6:8]} {row['tm'][8:10]}:{row['tm'][10:12]}:00"
             cur.execute(
                 UPDATE_WEATHER_SQL,
-                (row["pa"], row["ws"], row["wd"], station_code, ts),
+                (row["pa"], row["ws"], row["wd"], row["gst"], row["wh"], station_code, ts),
             )
             updated += cur.rowcount
     conn.commit()
@@ -338,7 +341,7 @@ class DataCollector:
     KHOA 실측·예측 조위 + KMA 해양기상부이 실제 수집 모듈.
     - API 키: KHOA_API_KEY 또는 DATA_GO_KR_API_KEY, KMA_API_KEY (.env)
     - 관측소 1개, 어제+오늘 2일치를 적재한다.
-    - KHOA가 행을 만들고, KMA가 그 행의 기상 컬럼을 채운다 (순서 중요).
+    - KHOA가 행을 만들고, KMA가 그 행의 기상 컬럼(기압·풍속·풍향·돌풍·파고)을 채운다 (순서 중요).
     - KMA 실패는 경고를 남기고 넘어간다. KHOA가 핵심 데이터다.
     """
 
