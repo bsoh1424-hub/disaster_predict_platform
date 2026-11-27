@@ -469,9 +469,13 @@ def main():
     df = load_data()
 
     print("=== 2) 정규화 (훈련용으로만 평균·표준편차 계산) ===")
-    cut_idx = int(len(df) * TRAIN_RATIO)
-    cut_time = df["timestamp"].iloc[cut_idx]
-    train_df = df.iloc[:cut_idx].copy()
+    # ★ 시간 기준으로 나눔. df는 (관측소, 시간) 순으로 정렬돼 있어서
+    #   행 번호(cut_idx)로 자르면 관측소 경계에 걸려 기준 시간이
+    #   데이터 시작점(2026-11-22 00:00)이 되고, 훈련용이 0개가 된다.
+    #   그래서 고유 시각 목록에서 80% 지점을 기준 시간으로 쓴다.
+    uniq_times = np.sort(df["timestamp"].unique())
+    cut_time = uniq_times[int(len(uniq_times) * TRAIN_RATIO)]
+    train_df = df[df["timestamp"] < cut_time].copy()
     mean = train_df[FEATURE_COLS].values.astype(float).mean(axis=0)
     std = train_df[FEATURE_COLS].values.astype(float).std(axis=0)
     # ★ std가 0인 컬럼은 0으로 나누면 NaN이 돼.
