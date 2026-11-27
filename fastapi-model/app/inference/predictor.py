@@ -124,19 +124,19 @@ VERSION = "surge_lstm_all_2026-11-25"
 
 # ------------------------------------------------------------
 # 모델 구조 — train_surge_all.py의 SurgeLSTM과 똑같아야 해
-# LSTM(입력 7개, hidden 64, 1층) + Linear(64 -> 2)
+# LSTM(입력 7개, hidden 64, 1층) + Linear(64 -> 리드타임 개수)
 # ------------------------------------------------------------
 class SurgeLSTM(nn.Module):
-    def __init__(self, input_size=7, hidden_size=64):
+    def __init__(self, input_size=7, hidden_size=64, output_size=2):
         super().__init__()
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
                             num_layers=1, batch_first=True)
-        self.fc = nn.Linear(hidden_size, 2)  # 64개 -> 2개 (+12h, +24h)
+        self.fc = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         lstm_out, (hidden, cell) = self.lstm(x)
         out = self.fc(hidden[-1])
-        return out  # 모양 (개수, 2). [0]=+12h, [1]=+24h
+        return out  # 모양 (개수, 리드타임 개수)
 
 
 # ------------------------------------------------------------
@@ -183,6 +183,7 @@ class SurgePredictor:
         self.model = SurgeLSTM(
             input_size=len(self.feature_cols),
             hidden_size=int(ckpt["hidden_size"]),
+            output_size=len(self.target_hours),
         )
         self.model.load_state_dict(ckpt["state_dict"])
         self.model.eval()  # 예측 모드 (훈련 모드가 아님)

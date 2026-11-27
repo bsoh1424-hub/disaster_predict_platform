@@ -114,7 +114,7 @@ RESIDUAL_IDX = FEATURE_COLS.index("residual_cm")  # 1번
 
 # 경쟁 규칙
 WINDOW = 72                # 지난 72시간을 보고 예측해
-TARGET_HOURS = [12, 24]    # +12h, +24h 편차 2개
+TARGET_HOURS = [3, 6, 9, 12, 15, 18, 21, 24]    # 3시간 간격 편차 8개
 HIDDEN_SIZE = 64
 EPOCHS = 100               # 1시간 데이터는 윈도우가 많아서 100번으로 시작해
 COMPETITION_DAYS = 5       # 5일 경쟁
@@ -220,17 +220,18 @@ class SurgeLSTM(nn.Module):
 
 def make_windows(df, feature_cols, mean, std, window=WINDOW, target_hours=TARGET_HOURS):
     # 지난 72시간을 한 묶음으로 잘라서 입력(X)으로 만들고,
-    # +12h / +24h 편차를 정답(y)으로 만드는 거야.
+    # 각 리드타임(3h, 6h, ... 24h) 편차를 정답(y)으로 만드는 거야.
     # 빈 구간 규칙: 72시간이 1시간씩 안 이어지면 버리고,
-    # +12h / +24h 자리에 행이 없으면 버려.
+    # 목표 시간 중 하나라도 행이 없으면 버려.
     values = df[feature_cols].values.astype(float)
     values_norm = (values - mean) / std
     times = df["timestamp"]
     time_to_idx = {t: i for i, t in enumerate(times)}
 
     X_list, y_list = [], []
-    base_times, t12_times, t24_times = [], [], []
-    raw_y12, raw_y24 = [], []
+    base_times = []
+    target_times_list = [[] for _ in target_hours]  # 리드타임별 목표 시간
+    raw_ys_list = [[] for _ in target_hours]        # 리드타임별 실제 편차
     skipped_gap = 0
     skipped_target = 0
 
@@ -240,51 +241,51 @@ def make_windows(df, feature_cols, mean, std, window=WINDOW, target_hours=TARGET
             skipped_gap += 1
             continue
         end_time = window_times.iloc[-1]
-        t12 = end_time + pd.Timedelta(hours=target_hours[0])
-        t24 = end_time + pd.Timedelta(hours=target_hours[1])
-        if t12 not in time_to_idx or t24 not in time_to_idx:
+        targets = [end_time + pd.Timedelta(hours=h) for h in target_hours]
+        if any(t not in time_to_idx for t in targets):
             skipped_target += 1
             continue
         X_list.append(values_norm[i:i + window])
-        y12_norm = values_norm[time_to_idx[t12], RESIDUAL_IDX]
-        y24_norm = values_norm[time_to_idx[t24], RESIDUAL_IDX]
-        y_list.append([y12_norm, y24_norm])
+        y_row = []
+        for j, t in enumerate(targets):
+            y_row.append(values_norm[time_to_idx[t], RESIDUAL_IDX])
+            target_times_list[j].append(t)
+            raw_ys_list[j].append(float(df["residual_cm"].iloc[time_to_idx[t]]))
+        y_list.append(y_row)
         base_times.append(end_time)
-        t12_times.append(t12)
-        t24_times.append(t24)
-        raw_y12.append(float(df["residual_cm"].iloc[time_to_idx[t12]]))
-        raw_y24.append(float(df["residual_cm"].iloc[time_to_idx[t24]]))
 
     print(f"윈도우 {len(X_list)}개. 버린 거: 빈 구간 {skipped_gap}개, 목표 시간 없음 {skipped_target}개")
     X = torch.tensor(np.array(X_list), dtype=torch.float32)
     y = torch.tensor(np.array(y_list), dtype=torch.float32)
-    return X, y, base_times, t12_times, t24_times, np.array(raw_y12), np.array(raw_y24)
+    raw_ys = [np.array(r) for r in raw_ys_list]
+    return X, y, base_times, target_times_list, raw_ys
 
 
 def make_windows_all(df, feature_cols, mean, std, window=WINDOW, target_hours=TARGET_HOURS):
     # 지역마다 따로 윈도우를 만들어서 합쳐. (합친 모델 방식)
     # 지역을 섞으면 시간이 안 이어져서 윈도우가 깨져. 그래서 지역별로 나눠.
     all_X, all_y = [], []
-    all_base, all_t12, all_t24 = [], [], []
-    all_raw12, all_raw24 = [], []
+    all_base = []
+    all_target_times = [[] for _ in target_hours]
+    all_raw_ys = [[] for _ in target_hours]
     for station, group in df.groupby("station_code", sort=True):
         group = group.sort_values("timestamp").reset_index(drop=True)
-        X, y, base, t12, t24, raw12, raw24 = make_windows(
+        X, y, base, target_times_list, raw_ys = make_windows(
             group, feature_cols, mean, std, window, target_hours)
         if len(X) == 0:
-            print(f"  {station}: 윈도우 0개 (데이터가 72시간+24시간보다 짧아)")
+            print(f"  {station}: 윈도우 0개 (데이터가 72시간+{max(target_hours)}시간보다 짧아)")
             continue
         print(f"  {station}: 윈도우 {len(X)}개")
         all_X.append(X)
         all_y.append(y)
         all_base.extend(base)
-        all_t12.extend(t12)
-        all_t24.extend(t24)
-        all_raw12.extend(raw12)
-        all_raw24.extend(raw24)
+        for j in range(len(target_hours)):
+            all_target_times[j].extend(target_times_list[j])
+            all_raw_ys[j].extend(raw_ys[j])
     X = torch.cat(all_X) if all_X else torch.empty(0)
     y = torch.cat(all_y) if all_y else torch.empty(0)
-    return X, y, all_base, all_t12, all_t24, np.array(all_raw12), np.array(all_raw24)
+    all_raw_ys = [np.array(r) for r in all_raw_ys]
+    return X, y, all_base, all_target_times, all_raw_ys
 
 
 def train_model(X_train, y_train, batch_size, epochs=EPOCHS):
@@ -323,31 +324,30 @@ def load_champion_model(path):
 # ============================================================
 def daily_error(pred_df):
     # 예측 편차랑 실제 편차를 비교해. 하루 1줄씩 저장해.
-    # pred_df에 pred_residual_12h_cm, actual_residual_12h_cm,
-    # pred_residual_24h_cm, actual_residual_24h_cm이 들어있어야 해.
-    # mae는 +12h/+24h MAE의 평균이야. 이걸로 챔피언이랑 챌린저를 비교해.
+    # pred_df에 리드타임별 pred_residual_{h}h_cm, actual_residual_{h}h_cm이 들어있어야 해.
+    # mae는 모든 리드타임 MAE의 평균이야. 이걸로 챔피언이랑 챌린저를 비교해.
     rows = []
+    last_h = TARGET_HOURS[-1]
     for _, row in pred_df.iterrows():
-        target = pd.to_datetime(row["target_24h"])
-        e12 = float(row["pred_residual_12h_cm"]) - float(row["actual_residual_12h_cm"])
-        e24 = float(row["pred_residual_24h_cm"]) - float(row["actual_residual_24h_cm"])
-        mae_12h = abs(e12)
-        mae_24h = abs(e24)
-        # RMSE는 제곱해서 평균내고 제곱근을 씌우는 거야. MAE랑은 달라.
-        rmse_12h = (e12 ** 2) ** 0.5
-        rmse_24h = (e24 ** 2) ** 0.5
-        rows.append({
+        target = pd.to_datetime(row[f"target_{last_h}h"])
+        errs = []
+        for h in TARGET_HOURS:
+            e = float(row[f"pred_residual_{h}h_cm"]) - float(row[f"actual_residual_{h}h_cm"])
+            errs.append(e)
+        maes = [abs(e) for e in errs]
+        rmses = [(e ** 2) ** 0.5 for e in errs]
+        row_out = {
             "date": target.strftime("%Y-%m-%d"),
             "model": row.get("model_version", "champion"),
-            "mae": round((mae_12h + mae_24h) / 2, 2),
-            "mae_12h": round(mae_12h, 2),
-            "mae_24h": round(mae_24h, 2),
-            "rmse": round(((rmse_12h ** 2 + rmse_24h ** 2) / 2) ** 0.5, 2),
-            "pred_12h_cm": round(float(row["pred_residual_12h_cm"]), 2),
-            "actual_12h_cm": round(float(row["actual_residual_12h_cm"]), 2),
-            "pred_24h_cm": round(float(row["pred_residual_24h_cm"]), 2),
-            "actual_24h_cm": round(float(row["actual_residual_24h_cm"]), 2),
-        })
+            "mae": round(sum(maes) / len(maes), 2),
+            # RMSE는 제곱해서 평균내고 제곱근을 씌우는 거야. MAE랑은 달라.
+            "rmse": round((sum(r ** 2 for r in rmses) / len(rmses)) ** 0.5, 2),
+        }
+        for j, h in enumerate(TARGET_HOURS):
+            row_out[f"mae_{h}h"] = round(maes[j], 2)
+            row_out[f"pred_{h}h_cm"] = round(float(row[f"pred_residual_{h}h_cm"]), 2)
+            row_out[f"actual_{h}h_cm"] = round(float(row[f"actual_residual_{h}h_cm"]), 2)
+        rows.append(row_out)
     if not rows:
         print("오차 계산할 날짜가 없습니다.")
         return pd.DataFrame()
@@ -483,15 +483,16 @@ def main():
     print("표준편차:", dict(zip(FEATURE_COLS, np.round(std, 3))))
     print("훈련/검사 기준 시간:", cut_time)
 
-    print("=== 3) 윈도우 만들기 (지역마다 따로, 지난 72시간 -> +12h / +24h 편차) ===")
-    X, y, base_times, t12_times, t24_times, raw_y12, raw_y24 = make_windows_all(df, FEATURE_COLS, mean, std)
-    is_train = np.array([t < cut_time for t in t24_times])
+    print(f"=== 3) 윈도우 만들기 (지역마다 따로, 지난 72시간 -> {', '.join(f'+{h}h' for h in TARGET_HOURS)} 편차) ===")
+    X, y, base_times, target_times_list, raw_ys = make_windows_all(df, FEATURE_COLS, mean, std)
+    # 훈련/검증 나눔은 가장 먼 리드타임(마지막) 기준으로 해.
+    last_target_times = target_times_list[-1]
+    is_train = np.array([t < cut_time for t in last_target_times])
     X_train, y_train = X[is_train], y[is_train]
     X_test, y_test = X[~is_train], y[~is_train]
-    raw_y12_test, raw_y24_test = raw_y12[~is_train], raw_y24[~is_train]
+    raw_ys_test = [r[~is_train] for r in raw_ys]
     test_base = [t for t, m in zip(base_times, is_train) if not m]
-    test_t12 = [t for t, m in zip(t12_times, is_train) if not m]
-    test_t24 = [t for t, m in zip(t24_times, is_train) if not m]
+    test_targets = [[t for t, m in zip(times, is_train) if not m] for times in target_times_list]
     print("X 모양:", X.shape, "훈련용:", X_train.shape, "검증용:", X_test.shape)
 
     print("=== 4) 챔피언 불러오기 (있으면 그대로, 없으면 처음 한 번만 훈련) ===")
@@ -513,12 +514,15 @@ def main():
     with torch.no_grad():
         pred_champ = champion(X_test).numpy() * std[RESIDUAL_IDX] + mean[RESIDUAL_IDX]
         pred_chall = challenger(X_test).numpy() * std[RESIDUAL_IDX] + mean[RESIDUAL_IDX]
-    mae_champ_12h = float(np.mean(np.abs(pred_champ[:, 0] - raw_y12_test)))
-    mae_champ_24h = float(np.mean(np.abs(pred_champ[:, 1] - raw_y24_test)))
-    mae_chall_12h = float(np.mean(np.abs(pred_chall[:, 0] - raw_y12_test)))
-    mae_chall_24h = float(np.mean(np.abs(pred_chall[:, 1] - raw_y24_test)))
-    print(f"챔피언 검증 MAE: +12h {mae_champ_12h:.2f}cm / +24h {mae_champ_24h:.2f}cm")
-    print(f"챌린저 검증 MAE: +12h {mae_chall_12h:.2f}cm / +24h {mae_chall_24h:.2f}cm")
+    mae_champ = []
+    mae_chall = []
+    for j, h in enumerate(TARGET_HOURS):
+        mc = float(np.mean(np.abs(pred_champ[:, j] - raw_ys_test[j])))
+        ml = float(np.mean(np.abs(pred_chall[:, j] - raw_ys_test[j])))
+        mae_champ.append(mc)
+        mae_chall.append(ml)
+        print(f"  +{h}h MAE: 챔피언 {mc:.2f}cm / 챌린저 {ml:.2f}cm")
+    print(f"챔피언 검증 MAE 평균: {np.mean(mae_champ):.2f}cm / 챌린저 검증 MAE 평균: {np.mean(mae_chall):.2f}cm")
 
     print("=== 7) 결과 저장 ===")
     # result 폴더가 없으면 torch.save가 실패해. 저장하기 전에 다시 만들어.
@@ -537,20 +541,18 @@ def main():
                 "batch_size": chall_batch},
                os.path.join(RESULT_DIR, "challenger.pt"))
     # train_surge.py 결과(surge_prediction.csv)를 덮지 않게 daily는 따로 저장해.
-    dates_12 = [d.strftime("%Y-%m-%d %H:%M") for d in test_t12]
-    dates_24 = [d.strftime("%Y-%m-%d %H:%M") for d in test_t24]
     base_str = [d.strftime("%Y-%m-%d %H:%M") for d in test_base]
     n_test = len(pred_champ)
-    pred_df = pd.DataFrame({
+    pred_data = {
         "base_time": base_str + base_str,
-        "target_12h": dates_12 + dates_12,
-        "target_24h": dates_24 + dates_24,
-        "pred_residual_12h_cm": np.round(np.concatenate([pred_champ[:, 0], pred_chall[:, 0]]), 2),
-        "actual_residual_12h_cm": np.round(np.concatenate([raw_y12_test, raw_y12_test]), 2),
-        "pred_residual_24h_cm": np.round(np.concatenate([pred_champ[:, 1], pred_chall[:, 1]]), 2),
-        "actual_residual_24h_cm": np.round(np.concatenate([raw_y24_test, raw_y24_test]), 2),
         "model_version": ["champion"] * n_test + ["challenger"] * n_test,
-    })
+    }
+    for j, h in enumerate(TARGET_HOURS):
+        dates = [d.strftime("%Y-%m-%d %H:%M") for d in test_targets[j]]
+        pred_data[f"target_{h}h"] = dates + dates
+        pred_data[f"pred_residual_{h}h_cm"] = np.round(np.concatenate([pred_champ[:, j], pred_chall[:, j]]), 2)
+        pred_data[f"actual_residual_{h}h_cm"] = np.round(np.concatenate([raw_ys_test[j], raw_ys_test[j]]), 2)
+    pred_df = pd.DataFrame(pred_data)
     pred_df.to_csv(os.path.join(RESULT_DIR, "surge_prediction_daily.csv"), index=False, encoding="utf-8-sig")
     print(pred_df.head())
     print("저장이 완료되었습니다: result/challenger.pt, result/surge_prediction_daily.csv")

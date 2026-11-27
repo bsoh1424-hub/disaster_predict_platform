@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '../../lib/api';
-import { ForecastResponse, StationSummary } from '../../types/api';
+import { ForecastResponse, ObservationResponse, StationSummary } from '../../types/api';
 import DoubleCurveChart from '../../components/DoubleCurveChart';
 
 function ForecastContent() {
@@ -13,6 +13,7 @@ function ForecastContent() {
   const [stations, setStations] = useState<StationSummary[]>([]);
   const [selectedStation, setSelectedStation] = useState<string>(initialStation);
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
+  const [observations, setObservations] = useState<ObservationResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +46,14 @@ function ForecastContent() {
       try {
         const data = await api.getForecast(selectedStation);
         setForecast(data);
+        // 과거 24h 관측값 (차트에 이전 데이터 표시용 — 실패해도 예측은 보여줌)
+        try {
+          const obs = await api.getObservations(selectedStation);
+          setObservations(obs);
+        } catch (e) {
+          console.error(e);
+          setObservations(null);
+        }
       } catch (err: unknown) {
         console.error(err);
         setError(`예측 데이터를 불러오지 못했습니다: ${selectedStation}`);
@@ -234,6 +243,8 @@ function ForecastContent() {
               advisoryThreshold={forecast.advisoryThresholdCm}
               warningThreshold={forecast.warningThresholdCm}
               stationName={forecast.stationName}
+              history={observations?.observations ?? []}
+              baseTime={forecast.baseTime}
             />
           </div>
 
