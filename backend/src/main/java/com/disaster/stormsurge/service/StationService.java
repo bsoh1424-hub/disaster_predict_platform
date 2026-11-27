@@ -34,24 +34,6 @@ public class StationService {
         List<Station> stations = stationRepository.findAll();
         Optional<PredictionRun> latestRun = runRepository.findTopByOrderByExecutedAtDesc();
 
-        // 관측소별 최신 예측 — 각 관측소의 가장 최근 run 결과를 사용.
-        // (이전에는 단일 최신 run만 봐서, 그 run에 없는 관측소는 예측이 있어도 null이 됐다.)
-        Map<String, PredictionResult> resultMap = new HashMap<>();
-        List<PredictionRun> recentRuns = runRepository.findTop100ByOrderByExecutedAtDesc();
-        for (PredictionRun run : recentRuns) {
-            List<PredictionResult> results = resultRepository.findByRunIdOrderByStationCodeAscLeadHourAsc(run.getRunId());
-            for (PredictionResult r : results) {
-                // 같은 관측소는 가장 최근 run의 결과만 사용. 한 run 안에서는
-                // leadHour 오름차순(12시간이 먼저)으로 들어와 12시간이 우선된다.
-                if (!resultMap.containsKey(r.getStationCode())) {
-                    resultMap.put(r.getStationCode(), r);
-                }
-            }
-            if (resultMap.size() >= stations.size()) {
-                break; // 모든 관측소 채워지면 더 오래된 run은 볼 필요 없음
-            }
-        }
-
         List<StationSummary> list = new ArrayList<>();
         for (Station s : stations) {
             StationThreshold th = thresholdRepository.findByStationCode(s.getStationCode()).orElse(null);
@@ -64,7 +46,9 @@ public class StationService {
             LocalDateTime obsTime = latestObs.map(TideObservation::getObsTime).orElse(null);
 
             // 12시간 뒤 예측 총수위 — 없으면 null (가짜 120.0 기본값 제거)
-            PredictionResult pred = resultMap.get(s.getStationCode());
+            PredictionResult pred = resultRepository
+                    .findTopByStationCodeAndLeadHourOrderByRunIdDesc(s.getStationCode(), 12)
+                    .orElse(null);
             Double totalTide = pred != null ? pred.getTotalTideCm() : null;
 
             // 경보 판정은 현재 관측 수위 기준 (실시간 상황판). 관측 없으면 NORMAL.

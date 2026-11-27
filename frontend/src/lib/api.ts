@@ -118,6 +118,19 @@ export const api = {
     return res.json();
   },
 
+  // 전체 관측소 배치 재계산
+  async runBatch(): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/batch/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) throw new Error('전체 배치 재계산 요청 실패');
+    return res.text();
+  },
+
   // 태풍 사례 목록 (Q6)
   async getTyphoonCases(): Promise<TyphoonCaseSummary[]> {
     const res = await fetch(`${API_BASE}/api/cases`, { cache: 'no-store' });
