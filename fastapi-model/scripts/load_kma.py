@@ -77,8 +77,8 @@ def get_db():
         database=db, charset="utf8mb4", autocommit=False,
     )
 
-# 4일치: 11월 22, 23, 24, 25일 (오늘 포함)
-days = [date.today() - timedelta(days=i) for i in (3, 2, 1, 0)]
+# 5일치: 오늘 포함 최근 5일 (학습용 5일 백필에 맞춤)
+days = [date.today() - timedelta(days=i) for i in (4, 3, 2, 1, 0)]
 
 conn = get_db()
 for day in days:
