@@ -22,7 +22,7 @@ function LoginContent() {
     setError(null);
     try {
       const res = await api.login(username.trim(), password);
-      localStorage.setItem('token', res.token);
+      sessionStorage.setItem('token', res.token);
       router.push(next);
     } catch {
       setError('로그인에 실패했습니다. 아이디 또는 비밀번호를 확인하세요.');
