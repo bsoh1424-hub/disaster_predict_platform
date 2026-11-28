@@ -43,6 +43,11 @@ export default function HomePage() {
         setSelectedStation(sorted[0]);
       }
     } catch (e) {
+      if (e instanceof Error && e.message === 'UNAUTHORIZED') {
+        sessionStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
       console.error(e);
       alert('전체 재계산 중 오류가 발생했습니다.');
     } finally {
@@ -57,6 +62,11 @@ export default function HomePage() {
       await api.refreshData();
       alert('최신 데이터 가져오기를 시작했습니다. 1~2분 뒤 새로고침하면 반영됩니다.');
     } catch (e) {
+      if (e instanceof Error && e.message === 'UNAUTHORIZED') {
+        sessionStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
       console.error(e);
       alert('최신 데이터 가져오기 중 오류가 발생했습니다.');
     } finally {

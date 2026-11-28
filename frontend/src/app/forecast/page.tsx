@@ -72,6 +72,11 @@ function ForecastContent() {
       const data = await api.recalculate(selectedStation);
       setForecast(data);
     } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+        sessionStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
       alert('실시간 재계산 중 오류가 발생했습니다: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setRecalculating(false);
@@ -89,6 +94,11 @@ function ForecastContent() {
       const data = await api.getForecast(selectedStation);
       setForecast(data);
     } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'UNAUTHORIZED') {
+        sessionStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
       alert('전체 재계산 중 오류가 발생했습니다: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setRecalculating(false);
