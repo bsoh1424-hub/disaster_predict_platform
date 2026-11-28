@@ -22,7 +22,7 @@
 #   윈도우 하나는 여전히 한 지역의 72시간이야. 섞인 윈도우는 없어.
 #   모델은 지역을 구분 못 해. 11개 지역 데이터를 다 보고 평균적인 패턴을 배우는 거야.
 #
-# 데이터: merged_*_1yr.csv 11개 전부. 같은 폴더에 있어야 해.
+# 데이터: data/merged_*_1yr.csv 11개 전부. 같은 폴더에 있어야 해.
 #   (C:\project\10곳 부이 + 조위\ 안에 있는 10개를 sample_project로 복사해 와.)
 #   부산 8,750행 + 나머지 10개 = 총 약 91,048행. 윈도우는 약 9만 개.
 #   훈련 시간: 부산 1개가 2~3분 걸렸으니, 11개 합치면 20~30분 정도 걸려.
@@ -49,17 +49,17 @@ import matplotlib.pyplot as plt
 # ============================================================
 # 지역 이름 -> 파일명. 파일 11개가 이 스크립트랑 같은 폴더에 있어야 해.
 DATA_FILES = {
-    "부산": "merged_busan_1yr.csv",
-    "인천": "merged_incheon_1yr.csv",
-    "덕적도": "merged_deokjeokdo_1yr.csv",
-    "추자도": "merged_chujado_1yr.csv",
-    "서귀포": "merged_seogwipo_1yr.csv",
-    "울릉도": "merged_ulleungdo_1yr.csv",
-    "통영": "merged_tongyeong_1yr.csv",
-    "거문도": "merged_geomundo_1yr.csv",
-    "울산": "merged_ulsan_1yr.csv",
-    "포항": "merged_pohang_1yr.csv",
-    "거제도": "merged_geoje_1yr.csv",
+    "부산": "data/merged_busan_1yr.csv",
+    "인천": "data/merged_incheon_1yr.csv",
+    "덕적도": "data/merged_deokjeokdo_1yr.csv",
+    "추자도": "data/merged_chujado_1yr.csv",
+    "서귀포": "data/merged_seogwipo_1yr.csv",
+    "울릉도": "data/merged_ulleungdo_1yr.csv",
+    "통영": "data/merged_tongyeong_1yr.csv",
+    "거문도": "data/merged_geomundo_1yr.csv",
+    "울산": "data/merged_ulsan_1yr.csv",
+    "포항": "data/merged_pohang_1yr.csv",
+    "거제도": "data/merged_geoje_1yr.csv",
 }
 
 # X(입력) 컬럼 순서 — 이 순서가 곧 predict() 입력 순서야. 절대 바꾸지 마.
@@ -95,6 +95,7 @@ for region, fname in DATA_FILES.items():
     df = pd.read_csv(fname)
     df = df.rename(columns={df.columns[0]: "timestamp"})
     df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df[df['tide_obs_cm'] != 0]  # tide_obs=0 (결측) 행 제거
     df = df.sort_values("timestamp").reset_index(drop=True)
     dfs[region] = df
     print(f"{region}: {df.shape}, {df['timestamp'].iloc[0]} ~ {df['timestamp'].iloc[-1]}")

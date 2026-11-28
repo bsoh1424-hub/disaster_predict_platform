@@ -140,12 +140,12 @@ function ForecastContent() {
               disabled={recalculating}
               className="btn btn-primary btn-sm d-flex align-items-center gap-1.5 px-3 py-1.5 shadow-sm"
             >
-              <i className="bi bi-arrow-repeat"></i>
-              <span>{recalculating ? '재계산 중...' : '실시간 재계산 (A1)'}</span>
+              <span>{recalculating ? '재계산 중...' : '실시간 재계산'}</span>
             </button>
             <button 
               onClick={handleRecalculateAll} 
               disabled={recalculating}
+              className="btn btn-primary btn-sm d-flex align-items-center gap-1.5 px-3 py-1.5 shadow-sm"
             >
               전체 재계산
             </button>
