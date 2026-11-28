@@ -284,7 +284,7 @@ export default function DoubleCurveChart({
                   <circle cx={cx} cy={cyAstro} r="4" fill="#adb5bd" />
 
                   {/* 총 수위 마커 & 레이블 */}
-                  <circle cx={cx} cy={cyTotal} r="6" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} />
+                  <circle cx={cx} cy={cyTotal} r="4" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} />
                   {/* 호버 히트 영역 (투명 — 점 주변 넓게 반응) */}
                   <circle cx={cx} cy={cyTotal} r="16" fill="transparent" />
 
