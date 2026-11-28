@@ -81,6 +81,8 @@ def _parse_base_time(s: str) -> datetime:
 # 찾는 위치: predictor.py가 있는 폴더부터 위로 올라가면서
 # (.env가 main_project 루트나 fastapi-model 폴더에 있어도 찾아).
 # 이미 환경변수로 설정된 값은 덮어쓰지 않아.
+# 여러 .env에 값이 흩어져 있을 수 있어서, 찾은 파일마다 없는 키만 채우고
+# 다음 폴더의 .env도 계속 읽는다 (먼저 찾은 값이 이김).
 # ------------------------------------------------------------
 def _load_env_file():
     here = Path(__file__).resolve().parent
@@ -101,10 +103,43 @@ def _load_env_file():
                     os.environ[key] = value
         except Exception:
             pass
-        break  # 찾은 첫 번째 .env만 읽어
 
 
 _load_env_file()
+
+
+def _db_config():
+    # DB 연결 설정. DB_URL(JDBC)이 있으면 거기서 host/port/database를 읽고,
+    # 없거나 파싱이 안 되면 개별 DB_HOST/DB_PORT/DB_NAME을 쓴다.
+    # 팀원 PC는 MariaDB 3307, 이 PC는 3306 - 각자 .env의 DB_URL이 정한다.
+    # predictor.py 안에 3306을 박아두면 풀 받을 때마다 3307로 되돌아가서 이렇게 바꿈.
+    url = os.getenv("DB_URL", "")
+    host = os.getenv("DB_HOST", "localhost")
+    port = int(os.getenv("DB_PORT", "3307"))
+    database = os.getenv("DB_NAME", "storm_surge_team")
+    if url:
+        try:
+            rest = url.split("://", 1)[1] if "://" in url else url
+            rest = rest.split("?", 1)[0]  # 쿼리 먼저 제거 (serverTimezone=Asia/Seoul 안에 /가 있음)
+            if "/" in rest:
+                hostport, dbname = rest.rsplit("/", 1)
+                if dbname:
+                    database = dbname
+            else:
+                hostport = rest
+            if hostport.startswith("["):
+                # IPv6: [::1]:3306
+                host, _, portpart = hostport.partition("]:")
+                host = host[1:]
+                port = int(portpart) if portpart else port
+            elif ":" in hostport:
+                host, _, portpart = hostport.partition(":")
+                port = int(portpart) if portpart else port
+            else:
+                host = hostport
+        except Exception:
+            pass
+    return host, port, database
 
 # ------------------------------------------------------------
 # 설정
@@ -262,12 +297,13 @@ class SurgePredictor:
                 "`pip install pymysql` 하고 FastAPI를 다시 켜."
             )
         try:
+            db_host, db_port, db_name = _db_config()
             conn = pymysql.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=int(os.getenv("DB_PORT", "3307")),
+                host=db_host,
+                port=db_port,
                 user=os.getenv("DB_USER", "surge"),
                 password=os.getenv("DB_PASSWORD", ""),
-                database=os.getenv("DB_NAME", "storm_surge_team"),
+                database=db_name,
                 charset="utf8mb4",
                 cursorclass=pymysql.cursors.DictCursor,
             )
