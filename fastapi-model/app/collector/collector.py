@@ -353,7 +353,8 @@ class DataCollector:
         station = (station_id or "").upper()
         now = datetime.now()
         today = date.today()
-        days = [today - timedelta(days=1), today]
+        # 내일치도 함께 받아옴 — +24h 예측 목표 시각의 천문조가 필요해서
+        days = [today - timedelta(days=1), today, today + timedelta(days=1)]
         result: Dict[str, Any] = {
             "station_id": station,
             "collected_at": now.isoformat(),
