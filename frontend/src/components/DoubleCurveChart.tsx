@@ -281,15 +281,15 @@ export default function DoubleCurveChart({
                   </text>
 
                   {/* 천문조 마커 */}
-                  <circle cx={cx} cy={cyAstro} r="4" fill="#adb5bd" stroke="#fff" strokeWidth="2" />
+                  <circle cx={cx} cy={cyAstro} r="4" fill="#adb5bd" />
 
                   {/* 총 수위 마커 & 레이블 */}
-                  <circle cx={cx} cy={cyTotal} r="6" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} stroke="#fff" strokeWidth="2.5" />
+                  <circle cx={cx} cy={cyTotal} r="4" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} />
                   {/* 호버 히트 영역 (투명 — 점 주변 넓게 반응) */}
                   <circle cx={cx} cy={cyTotal} r="16" fill="transparent" />
 
                   {/* 잔차 마커 */}
-                  <circle cx={cx} cy={cyRes} r="4" fill="#6f42c1" stroke="#fff" strokeWidth="2" />
+                  <circle cx={cx} cy={cyRes} r="4" fill="#6f42c1" />
 
                   {/* 호버 툴팁: 마우스를 올린 점의 수치만 표시 */}
                   {hoveredLeadHour === p.leadHour && (
