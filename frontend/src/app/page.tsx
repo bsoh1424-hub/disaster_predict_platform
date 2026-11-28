@@ -45,7 +45,7 @@ export default function HomePage() {
     } catch (e) {
       if (e instanceof Error && e.message === 'UNAUTHORIZED') {
         sessionStorage.removeItem('token');
-        window.location.href = '/login';
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
         return;
       }
       console.error(e);
@@ -64,7 +64,7 @@ export default function HomePage() {
     } catch (e) {
       if (e instanceof Error && e.message === 'UNAUTHORIZED') {
         sessionStorage.removeItem('token');
-        window.location.href = '/login';
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
         return;
       }
       console.error(e);

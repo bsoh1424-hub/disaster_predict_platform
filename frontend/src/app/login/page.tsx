@@ -8,7 +8,8 @@ import { api } from '../../lib/api';
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get('next') || '/rag';
+  const rawNext = searchParams.get('next');
+  const next = rawNext && rawNext.startsWith('/') ? rawNext : '/';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
