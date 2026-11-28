@@ -120,9 +120,11 @@ def _db_config():
     if url:
         try:
             rest = url.split("://", 1)[1] if "://" in url else url
+            rest = rest.split("?", 1)[0]  # 쿼리 먼저 제거 (serverTimezone=Asia/Seoul 안에 /가 있음)
             if "/" in rest:
-                hostport, database = rest.rsplit("/", 1)
-                database = database.split("?", 1)[0] or database
+                hostport, dbname = rest.rsplit("/", 1)
+                if dbname:
+                    database = dbname
             else:
                 hostport = rest
             if hostport.startswith("["):
