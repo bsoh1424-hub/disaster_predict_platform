@@ -30,7 +30,7 @@ export default function RegisterPage() {
     setError(null);
     try {
       const res = await api.register(username.trim(), password, name.trim(), department.trim());
-      localStorage.setItem('token', res.token);
+      sessionStorage.setItem('token', res.token);
       router.push('/rag');
     } catch {
       setError('회원가입에 실패했습니다. 이미 존재하는 아이디일 수 있습니다.');

@@ -25,6 +25,44 @@ export default function HomePage() {
   const [regionFilter, setRegionFilter] = useState<string>('전체');
   const [viewMode, setViewMode] = useState<'map' | 'grid'>('map');
   const [selectedStation, setSelectedStation] = useState<StationSummary | null>(null);
+  const [recalculating, setRecalculating] = useState<boolean>(false);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+
+  const handleRecalculateAll = async () => {
+    if (recalculating) return;
+    setRecalculating(true);
+    try {
+      await api.runBatch();
+      const data = await api.getStations();
+      setStations(data);
+      if (data.length > 0) {
+        const sorted = [...data].sort((a, b) => {
+          const score = (lvl: string) => lvl === 'WARNING' ? 3 : lvl === 'ADVISORY' ? 2 : 1;
+          return score(b.alertLevel) - score(a.alertLevel);
+        });
+        setSelectedStation(sorted[0]);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('전체 재계산 중 오류가 발생했습니다.');
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  const handleRefreshData = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await api.refreshData();
+      alert('최신 데이터 가져오기를 시작했습니다. 1~2분 뒤 새로고침하면 반영됩니다.');
+    } catch (e) {
+      console.error(e);
+      alert('최신 데이터 가져오기 중 오류가 발생했습니다.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     async function load() {
@@ -56,6 +94,32 @@ export default function HomePage() {
 
   const warningCount = stations.filter((s) => s.alertLevel === 'WARNING').length;
   const advisoryCount = stations.filter((s) => s.alertLevel === 'ADVISORY').length;
+
+  // 선택된 관측소 표시용 값: 관측값이 메인, 12h 예측이 보조 (PR #32)
+  const selObs = selectedStation?.latestObsTideCm ?? null;
+  const selTotal = selectedStation?.latestTotalTideCm ?? null;
+  // 진행 바는 관측 수위 기준 (alertLevel도 관측 수위 기준)
+  const selPct =
+    selectedStation != null && selObs != null
+      ? Math.min(100, Math.round((selObs / selectedStation.warningThresholdCm) * 100))
+      : 0;
+
+  let selBarColor = 'bg-success';
+  if (selectedStation?.alertLevel === 'WARNING') selBarColor = 'bg-danger';
+  else if (selectedStation?.alertLevel === 'ADVISORY') selBarColor = 'bg-warning';
+
+  let selBadgeBg = '#d1e7dd';
+  let selBadgeClass = 'bg-success';
+  let selBadgeText = '✅ 정상 수위';
+  if (selectedStation?.alertLevel === 'WARNING') {
+    selBadgeBg = '#f8d7da';
+    selBadgeClass = 'bg-danger';
+    selBadgeText = '🚨 경보 초과';
+  } else if (selectedStation?.alertLevel === 'ADVISORY') {
+    selBadgeBg = '#fff3cd';
+    selBadgeClass = 'bg-warning text-dark';
+    selBadgeText = '⚠️ 주의보 초과';
+  }
 
   return (
     <div className="py-2">
@@ -120,24 +184,43 @@ export default function HomePage() {
           </span>
         </div>
 
-        {/* 뷰 모드 전환 버튼 (지도 뷰 vs 카드 그리드 뷰) */}
-        <div className="btn-group shadow-sm" role="group">
+        <div className="d-flex align-items-center gap-2">
           <button
             type="button"
-            onClick={() => setViewMode('map')}
-            className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'map' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+            onClick={handleRefreshData}
+            disabled={refreshing}
+            className="btn btn-sm btn-outline-primary"
           >
-            <i className="bi bi-map"></i>
-            <span>대한민국 지도 뷰</span>
+            {refreshing ? '가져오는 중...' : '최신 데이터'}
           </button>
           <button
             type="button"
-            onClick={() => setViewMode('grid')}
-            className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'grid' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+            onClick={handleRecalculateAll}
+            disabled={recalculating}
+            className="btn btn-sm btn-primary"
           >
-            <i className="bi bi-grid-3x3-gap"></i>
-            <span>격자 카드 뷰</span>
+            전체 재계산
           </button>
+
+          {/* 뷰 모드 전환 버튼 (지도 뷰 vs 카드 그리드 뷰) */}
+          <div className="btn-group shadow-sm" role="group">
+            <button
+              type="button"
+              onClick={() => setViewMode('map')}
+              className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'map' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+            >
+              <i className="bi bi-map"></i>
+              <span>대한민국 지도 뷰</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`btn btn-sm d-flex align-items-center gap-1 ${viewMode === 'grid' ? 'btn-dark' : 'btn-outline-secondary bg-white'}`}
+            >
+              <i className="bi bi-grid-3x3-gap"></i>
+              <span>격자 카드 뷰</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -184,42 +267,33 @@ export default function HomePage() {
 
                 <div className="card-body p-3">
                   <div className="d-flex justify-content-between align-items-baseline mb-2">
-                    <span className="text-muted small">예상 최고 총수위</span>
+                    <span className="text-muted small">현재 관측 수위</span>
                     <div className="text-end">
                       <span className="fs-2 fw-bold font-monospace text-primary">
-                        {selectedStation.latestTotalTideCm}
+                        {selObs != null ? Math.round(selObs) : '–'}
                       </span>
                       <span className="text-muted small ms-1">cm</span>
+                    </div>
+                  </div>
+
+                  <div className="d-flex justify-content-between align-items-baseline mb-2">
+                    <span className="text-muted small">12시간 뒤 예상 총수위</span>
+                    <div className="text-end">
+                      <span className="fs-5 fw-bold font-monospace text-secondary">
+                        {selTotal != null ? Math.round(selTotal) : '예측 없음'}
+                      </span>
+                      {selTotal != null && <span className="text-muted small ms-1">cm</span>}
                     </div>
                   </div>
 
                   {/* 특보 상태 뱃지 */}
                   <div
                     className="d-flex align-items-center justify-content-between p-2 rounded mb-3"
-                    style={{
-                      backgroundColor:
-                        selectedStation.alertLevel === 'WARNING'
-                          ? '#f8d7da'
-                          : selectedStation.alertLevel === 'ADVISORY'
-                          ? '#fff3cd'
-                          : '#d1e7dd'
-                    }}
+                    style={{ backgroundColor: selBadgeBg }}
                   >
                     <span className="small fw-semibold text-muted">특보 상태:</span>
-                    <span
-                      className={`badge ${
-                        selectedStation.alertLevel === 'WARNING'
-                          ? 'bg-danger'
-                          : selectedStation.alertLevel === 'ADVISORY'
-                          ? 'bg-warning text-dark'
-                          : 'bg-success'
-                      }`}
-                    >
-                      {selectedStation.alertLevel === 'WARNING'
-                        ? '🚨 경보 초과'
-                        : selectedStation.alertLevel === 'ADVISORY'
-                        ? '⚠️ 주의보 초과'
-                        : '✅ 정상 수위'}
+                    <span className={`badge ${selBadgeClass}`}>
+                      {selBadgeText}
                     </span>
                   </div>
 
@@ -233,20 +307,9 @@ export default function HomePage() {
                     </div>
                     <div className="progress" style={{ height: '8px' }}>
                       <div
-                        className={`progress-bar ${
-                          selectedStation.alertLevel === 'WARNING'
-                            ? 'bg-danger'
-                            : selectedStation.alertLevel === 'ADVISORY'
-                            ? 'bg-warning'
-                            : 'bg-success'
-                        }`}
+                        className={`progress-bar ${selBarColor}`}
                         role="progressbar"
-                        style={{
-                          width: `${Math.min(
-                            100,
-                            Math.round((selectedStation.latestTotalTideCm / selectedStation.warningThresholdCm) * 100)
-                          )}%`
-                        }}
+                        style={{ width: `${selPct}%` }}
                       ></div>
                     </div>
                   </div>
@@ -298,7 +361,7 @@ export default function HomePage() {
                       </div>
                       <div className="d-flex align-items-center gap-2 font-monospace">
                         <span className={isWarn ? 'text-danger fw-bold' : isAdv ? 'text-warning-emphasis fw-bold' : 'text-dark'}>
-                          {st.latestTotalTideCm} cm
+                          {st.latestObsTideCm != null ? `${Math.round(st.latestObsTideCm)} cm` : '–'}
                         </span>
                         <span
                           className={`badge ${
@@ -319,78 +382,89 @@ export default function HomePage() {
       ) : (
         /* ================= 2. 격자 카드 뷰 ================= */
         <div className="row g-3">
-          {filtered.map((st) => (
-            <div key={st.stationCode} className="col-sm-6 col-lg-4 col-xl-3">
-              <div className="card shadow-sm h-100 hover-shadow transition">
-                {/* 카드 헤더 */}
-                <div className="card-header bg-white py-2 px-3 d-flex align-items-center justify-content-between">
-                  <div className="d-flex align-items-center gap-1.5">
-                    <span className="fw-bold text-dark fs-6">{st.name}</span>
-                    <span className="badge bg-light text-secondary border font-monospace" style={{ fontSize: '0.65rem' }}>
-                      {st.stationCode}
+          {filtered.map((st) => {
+            const gridObs = st.latestObsTideCm;
+            const gridTotal = st.latestTotalTideCm;
+
+            let gridBadgeBg = '#d1e7dd';
+            let gridBadgeClass = 'bg-success';
+            let gridBadgeText = '✅ 정상 수위';
+            if (st.alertLevel === 'WARNING') {
+              gridBadgeBg = '#f8d7da';
+              gridBadgeClass = 'bg-danger';
+              gridBadgeText = '🚨 경보 초과';
+            } else if (st.alertLevel === 'ADVISORY') {
+              gridBadgeBg = '#fff3cd';
+              gridBadgeClass = 'bg-warning text-dark';
+              gridBadgeText = '⚠️ 주의보 초과';
+            }
+
+            return (
+              <div key={st.stationCode} className="col-sm-6 col-lg-4 col-xl-3">
+                <div className="card shadow-sm h-100 hover-shadow transition">
+                  {/* 카드 헤더 */}
+                  <div className="card-header bg-white py-2 px-3 d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center gap-1.5">
+                      <span className="fw-bold text-dark fs-6">{st.name}</span>
+                      <span className="badge bg-light text-secondary border font-monospace" style={{ fontSize: '0.65rem' }}>
+                        {st.stationCode}
+                      </span>
+                    </div>
+                    <span className="badge bg-secondary-subtle text-secondary small" style={{ fontSize: '0.7rem' }}>
+                      {st.seaRegion}해
                     </span>
                   </div>
-                  <span className="badge bg-secondary-subtle text-secondary small" style={{ fontSize: '0.7rem' }}>
-                    {st.seaRegion}해
-                  </span>
-                </div>
 
-                {/* 카드 바디: 총 수위 & 임계치 비교 */}
-                <div className="card-body p-3">
-                  <div className="d-flex justify-content-between align-items-baseline mb-2">
-                    <span className="text-muted small">예상 최고 총수위</span>
-                    <div className="text-end">
-                      <span className="fs-3 fw-bold font-monospace text-primary">{st.latestTotalTideCm}</span>
-                      <span className="text-muted small ms-1">cm</span>
+                  {/* 카드 바디: 관측 수위 & 12h 예측 */}
+                  <div className="card-body p-3">
+                    <div className="d-flex justify-content-between align-items-baseline mb-2">
+                      <span className="text-muted small">현재 관측 수위</span>
+                      <div className="text-end">
+                        <span className="fs-3 fw-bold font-monospace text-primary">{gridObs != null ? Math.round(gridObs) : '–'}</span>
+                        <span className="text-muted small ms-1">cm</span>
+                      </div>
+                    </div>
+
+                    <div className="d-flex justify-content-between align-items-baseline mb-2">
+                      <span className="text-muted small">12시간 뒤 예상 총수위</span>
+                      <div className="text-end">
+                        <span className="fs-6 fw-bold font-monospace text-secondary">{gridTotal != null ? Math.round(gridTotal) : '예측 없음'}</span>
+                        {gridTotal != null && <span className="text-muted small ms-1">cm</span>}
+                      </div>
+                    </div>
+
+                    {/* 상태 배지 */}
+                    <div
+                      className="d-flex align-items-center justify-content-between p-2 rounded mb-3"
+                      style={{ backgroundColor: gridBadgeBg }}
+                    >
+                      <span className="small fw-semibold text-muted">특보 판정:</span>
+                      <span className={`badge ${gridBadgeClass}`}>
+                        {gridBadgeText}
+                      </span>
+                    </div>
+
+                    {/* 임계치 안내 */}
+                    <div className="d-flex justify-content-between text-muted border-top pt-2" style={{ fontSize: '0.75rem' }}>
+                      <span>주의보: <strong>{st.advisoryThresholdCm}cm</strong></span>
+                      <span>경보: <strong>{st.warningThresholdCm}cm</strong></span>
                     </div>
                   </div>
 
-                  {/* 상태 배지 */}
-                  <div
-                    className="d-flex align-items-center justify-content-between p-2 rounded mb-3"
-                    style={{
-                      backgroundColor:
-                        st.alertLevel === 'WARNING'
-                          ? '#f8d7da'
-                          : st.alertLevel === 'ADVISORY'
-                          ? '#fff3cd'
-                          : '#d1e7dd'
-                    }}
-                  >
-                    <span className="small fw-semibold text-muted">특보 판정:</span>
-                    <span
-                      className={`badge ${
-                        st.alertLevel === 'WARNING'
-                          ? 'bg-danger'
-                          : st.alertLevel === 'ADVISORY'
-                          ? 'bg-warning text-dark'
-                          : 'bg-success'
-                      }`}
+                  {/* 카드 푸터: 상세 예측 페이지 이동 버튼 */}
+                  <div className="card-footer bg-light p-2 text-center">
+                    <Link
+                      href={`/forecast?station=${st.stationCode}`}
+                      className="btn btn-outline-primary btn-sm w-100 fw-semibold d-flex align-items-center justify-content-center gap-1"
                     >
-                      {st.alertLevel === 'WARNING' ? '🚨 경보 초과' : st.alertLevel === 'ADVISORY' ? '⚠️ 주의보 초과' : '✅ 정상 수위'}
-                    </span>
+                      <span>예측 모델 분석 &middot; 차트 보기</span>
+                      <i className="bi bi-chevron-right"></i>
+                    </Link>
                   </div>
-
-                  {/* 임계치 안내 */}
-                  <div className="d-flex justify-content-between text-muted border-top pt-2" style={{ fontSize: '0.75rem' }}>
-                    <span>주의보: <strong>{st.advisoryThresholdCm}cm</strong></span>
-                    <span>경보: <strong>{st.warningThresholdCm}cm</strong></span>
-                  </div>
-                </div>
-
-                {/* 카드 푸터: 상세 예측 페이지 이동 버튼 */}
-                <div className="card-footer bg-light p-2 text-center">
-                  <Link
-                    href={`/forecast?station=${st.stationCode}`}
-                    className="btn btn-outline-primary btn-sm w-100 fw-semibold d-flex align-items-center justify-content-center gap-1"
-                  >
-                    <span>예측 모델 분석 &middot; 차트 보기</span>
-                    <i className="bi bi-chevron-right"></i>
-                  </Link>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

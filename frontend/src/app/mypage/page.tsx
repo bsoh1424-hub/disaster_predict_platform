@@ -20,7 +20,7 @@ export default function MyPage() {
   const [changingPw, setChangingPw] = useState(false);
 
   useEffect(() => {
-    if (!localStorage.getItem('token')) {
+    if (!sessionStorage.getItem('token')) {
       router.push('/login?next=/mypage');
       return;
     }
@@ -95,7 +95,7 @@ export default function MyPage() {
       setError('회원 탈퇴에 실패했습니다.');
       return;
     }
-    localStorage.removeItem('token');
+    sessionStorage.removeItem('token');
     router.push('/');
   };
 

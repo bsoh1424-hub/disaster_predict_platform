@@ -77,8 +77,8 @@ def get_db():
         database=db, charset="utf8mb4", autocommit=False,
     )
 
-# 4일치: 11월 22, 23, 24, 25일 (오늘 포함)
-days = [date.today() - timedelta(days=i) for i in (3, 2, 1, 0)]
+# 5일치: 오늘 포함 최근 5일 (학습용 5일 백필에 맞춤)
+days = [date.today() - timedelta(days=i) for i in (4, 3, 2, 1, 0)]
 
 conn = get_db()
 for day in days:
@@ -92,8 +92,8 @@ for day in days:
             for row in rows:
                 ts = f"{row['tm'][:4]}-{row['tm'][4:6]}-{row['tm'][6:8]} {row['tm'][8:10]}:{row['tm'][10:12]}:00"
                 cur.execute(
-                    "UPDATE tide_observation SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s WHERE station_code=%s AND obs_time=%s",
-                    (row["pa"], row["ws"], row["wd"], station, ts),
+                    "UPDATE tide_observation SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s, wind_gust_ms=%s, wave_height_m=%s WHERE station_code=%s AND obs_time=%s",
+                    (row["pa"], row["ws"], row["wd"], row["gst"], row["wh"], station, ts),
                 )
                 updated += cur.rowcount
         conn.commit()

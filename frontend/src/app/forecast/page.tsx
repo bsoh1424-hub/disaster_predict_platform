@@ -3,7 +3,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { api } from '../../lib/api';
-import { ForecastResponse, StationSummary } from '../../types/api';
+import { ForecastResponse, ObservationResponse, StationSummary } from '../../types/api';
 import DoubleCurveChart from '../../components/DoubleCurveChart';
 
 function ForecastContent() {
@@ -13,6 +13,7 @@ function ForecastContent() {
   const [stations, setStations] = useState<StationSummary[]>([]);
   const [selectedStation, setSelectedStation] = useState<string>(initialStation);
   const [forecast, setForecast] = useState<ForecastResponse | null>(null);
+  const [observations, setObservations] = useState<ObservationResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [recalculating, setRecalculating] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +46,14 @@ function ForecastContent() {
       try {
         const data = await api.getForecast(selectedStation);
         setForecast(data);
+        // 과거 24h 관측값 (차트에 이전 데이터 표시용 — 실패해도 예측은 보여줌)
+        try {
+          const obs = await api.getObservations(selectedStation);
+          setObservations(obs);
+        } catch (e) {
+          console.error(e);
+          setObservations(null);
+        }
       } catch (err: unknown) {
         console.error(err);
         setError(`예측 데이터를 불러오지 못했습니다: ${selectedStation}`);
@@ -64,6 +73,23 @@ function ForecastContent() {
       setForecast(data);
     } catch (err: unknown) {
       alert('실시간 재계산 중 오류가 발생했습니다: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  // 전체 관측소 재계산
+  const handleRecalculateAll = async () => {
+    if (recalculating) return;
+    setRecalculating(true);
+    try {
+      await api.runBatch();
+      const updatedStations = await api.getStations();
+      setStations(updatedStations);
+      const data = await api.getForecast(selectedStation);
+      setForecast(data);
+    } catch (err: unknown) {
+      alert('전체 재계산 중 오류가 발생했습니다: ' + (err instanceof Error ? err.message : String(err)));
     } finally {
       setRecalculating(false);
     }
@@ -116,6 +142,12 @@ function ForecastContent() {
             >
               <i className="bi bi-arrow-repeat"></i>
               <span>{recalculating ? '재계산 중...' : '실시간 재계산 (A1)'}</span>
+            </button>
+            <button 
+              onClick={handleRecalculateAll} 
+              disabled={recalculating}
+            >
+              전체 재계산
             </button>
           </div>
         </div>
@@ -211,6 +243,8 @@ function ForecastContent() {
               advisoryThreshold={forecast.advisoryThresholdCm}
               warningThreshold={forecast.warningThresholdCm}
               stationName={forecast.stationName}
+              history={observations?.observations ?? []}
+              baseTime={forecast.baseTime}
             />
           </div>
 

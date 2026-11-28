@@ -13,7 +13,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080'
 
 function getAuthHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {};
-  const token = localStorage.getItem('token');
+  const token = sessionStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -116,6 +116,32 @@ export const api = {
     });
     if (!res.ok) throw new Error('실시간 재계산 요청 실패');
     return res.json();
+  },
+
+  // 전체 관측소 배치 재계산
+  async runBatch(): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/batch/run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) throw new Error('전체 배치 재계산 요청 실패');
+    return res.text();
+  },
+
+  // 최신 데이터 새로고침 (KHOA 조위 + KMA 부이, 전 관측소)
+  async refreshData(): Promise<string> {
+    const res = await fetch(`${API_BASE}/api/data/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeader(),
+      },
+    });
+    if (!res.ok) throw new Error('최신 데이터 새로고침 요청 실패');
+    return res.text();
   },
 
   // 태풍 사례 목록 (Q6)

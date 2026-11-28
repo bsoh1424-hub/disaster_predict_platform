@@ -34,30 +34,21 @@ public class StationService {
         List<Station> stations = stationRepository.findAll();
         Optional<PredictionRun> latestRun = runRepository.findTopByOrderByExecutedAtDesc();
 
-        Map<String, PredictionResult> resultMap = new HashMap<>();
-        if (latestRun.isPresent()) {
-            List<PredictionResult> results = resultRepository.findByRunIdOrderByStationCodeAscLeadHourAsc(latestRun.get().getRunId());
-            for (PredictionResult r : results) {
-                // 12시간 리드타임 또는 첫 번째 결과를 요약 대표로 사용
-                if (!resultMap.containsKey(r.getStationCode()) || r.getLeadHour() == 12) {
-                    resultMap.put(r.getStationCode(), r);
-                }
-            }
-        }
-
         List<StationSummary> list = new ArrayList<>();
         for (Station s : stations) {
             StationThreshold th = thresholdRepository.findByStationCode(s.getStationCode()).orElse(null);
             Double advisory = th != null ? th.getAdvisoryCm() : 200.0;
             Double warning = th != null ? th.getWarningCm() : 250.0;
 
-            // 최신 관측값 (실시간 현황) — 없으면 null (기본값을 넣지 않음)
-            Optional<TideObservation> latestObs = observationRepository.findTopByStationCodeOrderByObsTimeDesc(s.getStationCode());
+            // 최신 관측값 (실시간 현황) — 실측이 있는 행만 (오늘·미래 시간 행은 실측이 비어 있어 제외). 없으면 null (기본값을 넣지 않음)
+            Optional<TideObservation> latestObs = observationRepository.findTopByStationCodeAndTideObsCmIsNotNullOrderByObsTimeDesc(s.getStationCode());
             Double obsTide = latestObs.map(TideObservation::getTideObsCm).orElse(null);
             LocalDateTime obsTime = latestObs.map(TideObservation::getObsTime).orElse(null);
 
             // 12시간 뒤 예측 총수위 — 없으면 null (가짜 120.0 기본값 제거)
-            PredictionResult pred = resultMap.get(s.getStationCode());
+            PredictionResult pred = resultRepository
+                    .findTopByStationCodeAndLeadHourOrderByRunIdDesc(s.getStationCode(), 12)
+                    .orElse(null);
             Double totalTide = pred != null ? pred.getTotalTideCm() : null;
 
             // 경보 판정은 현재 관측 수위 기준 (실시간 상황판). 관측 없으면 NORMAL.
