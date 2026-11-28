@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
@@ -201,10 +202,14 @@ public class ForecastService {
         } else {
             PredictResponse pred = predictOpt.get();
             for (PredictionItem item : pred.predictions()) {
-                double astro = item.lead_hour() == 12 ? baseAstro12h : baseAstro24h;
+                LocalDateTime targetTime = now.plusHours(item.lead_hour()).truncatedTo(ChronoUnit.HOURS);
+                // 목표 시각의 실제 KHOA 천문조를 DB에서 조회 (행이 없으면 기존 추정값으로 폴백)
+                double astro = observationRepository.findByStationCodeAndObsTime(stationCode, targetTime)
+                        .map(TideObservation::getTidePredCm)
+                        .filter(v -> v != null)
+                        .orElseGet(() -> getEstimatedAstroTide(stationCode, item.lead_hour()));
                 double residual = item.residual_cm();
                 double prob = item.exceed_probability();
-                LocalDateTime targetTime = now.plusHours(item.lead_hour());
 
                 String reason = String.format("기압 역효과(+%.1fcm) 및 풍속 밀어올림(+%.1fcm) 작용. 예측 시각 만조 구간 근접.",
                         Math.max(0.0, (1013.25 - (double)features.get("forecast_pressure_12h")) * 1.0),
