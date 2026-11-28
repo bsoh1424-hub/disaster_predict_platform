@@ -17,6 +17,12 @@ function getAuthHeader(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// 인증 만료면 로그인 페이지로 보내기 위해 UNAUTHORIZED로 던진다.
+// 이 설정에서는 만료된 토큰도 403을 내므로 403까지 본다.
+function throwIfUnauthorized(res: Response): void {
+  if (res.status === 401 || res.status === 403) throw new Error('UNAUTHORIZED');
+}
+
 export const api = {
   // 인증
   async login(username: string, password: string):Promise<AuthResponse> {
@@ -114,6 +120,7 @@ export const api = {
         ...getAuthHeader(),
       },
     });
+    throwIfUnauthorized(res);
     if (!res.ok) throw new Error('실시간 재계산 요청 실패');
     return res.json();
   },
@@ -127,6 +134,7 @@ export const api = {
         ...getAuthHeader(),
       },
     });
+    throwIfUnauthorized(res);
     if (!res.ok) throw new Error('전체 배치 재계산 요청 실패');
     return res.text();
   },
@@ -140,6 +148,7 @@ export const api = {
         ...getAuthHeader(),
       },
     });
+    throwIfUnauthorized(res);
     if (!res.ok) throw new Error('최신 데이터 새로고침 요청 실패');
     return res.text();
   },
