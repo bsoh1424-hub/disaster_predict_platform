@@ -256,7 +256,7 @@ export default function DoubleCurveChart({
               const cyTotal = getYTotal(p.totalTideCm);
               const cyAstro = getYTotal(p.astronomicalTideCm);
               const cyRes = getYResidual(p.residualCm);
-              const timeLabel = `${p.leadHour}h 리드타임 (${p.targetTime.substring(11, 16)})`;
+              const timeLabel = `+${p.leadHour}h ${p.targetTime.substring(11, 16)}`;
 
               return (
                 <g key={p.leadHour}>
@@ -264,7 +264,7 @@ export default function DoubleCurveChart({
                   <line x1={cx} y1={paddingTop} x2={cx} y2={paddingTop + chartH} stroke="#dee2e6" strokeWidth="1" strokeDasharray="3 3" />
 
                   {/* X축 시간 라벨 */}
-                  <text x={cx} y={paddingTop + chartH + 18} textAnchor="middle" fill="#495057" fontSize="10" fontWeight="bold">
+                  <text x={cx} y={paddingTop + chartH + 18} textAnchor="middle" fill="#495057" fontSize="8" fontWeight="bold">
                     {timeLabel}
                   </text>
 
@@ -273,36 +273,36 @@ export default function DoubleCurveChart({
 
                   {/* 총 수위 마커 & 레이블 */}
                   <circle cx={cx} cy={cyTotal} r="6" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} stroke="#fff" strokeWidth="2.5" />
-                  <rect x={cx - 28} y={cyTotal - 24} width="56" height="18" rx="4" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} />
-                  <text x={cx} y={cyTotal - 12} textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold" className="font-monospace">
+                  <rect x={cx - 22} y={cyTotal - 22} width="44" height="15" rx="4" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} />
+                  <text x={cx} y={cyTotal - 11} textAnchor="middle" fill="#fff" fontSize="8" fontWeight="bold" className="font-monospace">
                     {p.totalTideCm}cm
                   </text>
 
                   {/* 잔차 마커 & 레이블 (라벨을 마커 위로 — 아래 초과율 배지와 겹치지 않게) */}
                   <circle cx={cx} cy={cyRes} r="4" fill="#6f42c1" stroke="#fff" strokeWidth="2" />
-                  <rect x={cx - 22} y={cyRes - 24} width="44" height="16" rx="3" fill="#f3e8ff" stroke="#d8b4fe" />
-                  <text x={cx} y={cyRes - 12} textAnchor="middle" fill="#6f42c1" fontSize="9" fontWeight="bold" className="font-monospace">
+                  <rect x={cx - 19} y={cyRes - 22} width="38" height="14" rx="3" fill="#f3e8ff" stroke="#d8b4fe" />
+                  <text x={cx} y={cyRes - 11} textAnchor="middle" fill="#6f42c1" fontSize="8" fontWeight="bold" className="font-monospace">
                     +{p.residualCm}
                   </text>
 
                   {/* 초과 확률 배지 */}
-                  <g transform={`translate(${cx - 32}, ${paddingTop + chartH - 22})`}>
+                  <g transform={`translate(${cx - 15}, ${paddingTop + chartH - 22})`}>
                     <rect
-                      width="64"
-                      height="17"
+                      width="30"
+                      height="15"
                       rx="8"
                       fill={p.exceedProbability >= 0.5 ? '#f8d7da' : '#cfe2ff'}
                       stroke={p.exceedProbability >= 0.5 ? '#f5c2c7' : '#b6d4fe'}
                     />
                     <text
-                      x="32"
-                      y="12"
+                      x="15"
+                      y="11"
                       textAnchor="middle"
                       fill={p.exceedProbability >= 0.5 ? '#842029' : '#084298'}
-                      fontSize="9"
+                      fontSize="8"
                       fontWeight="bold"
                     >
-                      초과율 {Math.round(p.exceedProbability * 100)}%
+                      {Math.round(p.exceedProbability * 100)}%
                     </text>
                   </g>
                 </g>
