@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ForecastPoint, ObservationPoint } from '../types/api';
 
 interface DoubleCurveChartProps {
@@ -19,7 +19,10 @@ export default function DoubleCurveChart({
   stationName,
   history,
   baseTime,
-}: DoubleCurveChartProps) {
+ }: DoubleCurveChartProps) {
+  // 호버 중인 예측 시점 (leadHour) — 해당 점의 수치만 툴팁으로 표시
+  const [hoveredLeadHour, setHoveredLeadHour] = useState<number | null>(null);
+
   if (!points || points.length === 0) {
     return (
       <div className="card shadow-sm p-4 text-center text-muted">
@@ -250,16 +253,25 @@ export default function DoubleCurveChart({
               );
             })}
 
-            {/* 예측 시점 마커 및 수치 라벨 (B1: 선 없이 점만 — 두 시점 사이를 직선으로 잇지 않음) */}
+            {/* 예측 시점 마커 (B1: 선 없이 점만 — 수치는 호버 툴팁으로 표시) */}
             {points.map((p) => {
               const cx = getX(toMs(p.targetTime));
               const cyTotal = getYTotal(p.totalTideCm);
               const cyAstro = getYTotal(p.astronomicalTideCm);
               const cyRes = getYResidual(p.residualCm);
+              const tipW = 118;
+              const tipH = 64;
+              const tipX = Math.min(Math.max(cx - tipW / 2, paddingLeft), width - paddingRight - tipW);
+              const tipY = Math.max(8, cyTotal - tipH - 14);
               const timeLabel = `+${p.leadHour}h ${p.targetTime.substring(11, 16)}`;
 
               return (
-                <g key={p.leadHour}>
+                <g
+                  key={p.leadHour}
+                  onMouseEnter={() => setHoveredLeadHour(p.leadHour)}
+                  onMouseLeave={() => setHoveredLeadHour(null)}
+                  style={{ cursor: 'pointer' }}
+                >
                   {/* 세로 타임라인 */}
                   <line x1={cx} y1={paddingTop} x2={cx} y2={paddingTop + chartH} stroke="#dee2e6" strokeWidth="1" strokeDasharray="3 3" />
 
@@ -273,38 +285,30 @@ export default function DoubleCurveChart({
 
                   {/* 총 수위 마커 & 레이블 */}
                   <circle cx={cx} cy={cyTotal} r="6" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} stroke="#fff" strokeWidth="2.5" />
-                  <rect x={cx - 22} y={cyTotal - 22} width="44" height="15" rx="4" fill={p.isExceeded ? '#dc3545' : '#0d6efd'} />
-                  <text x={cx} y={cyTotal - 11} textAnchor="middle" fill="#fff" fontSize="8" fontWeight="bold" className="font-monospace">
-                    {p.totalTideCm}cm
-                  </text>
+                  {/* 호버 히트 영역 (투명 — 점 주변 넓게 반응) */}
+                  <circle cx={cx} cy={cyTotal} r="16" fill="transparent" />
 
-                  {/* 잔차 마커 & 레이블 (라벨을 마커 위로 — 아래 초과율 배지와 겹치지 않게) */}
+                  {/* 잔차 마커 */}
                   <circle cx={cx} cy={cyRes} r="4" fill="#6f42c1" stroke="#fff" strokeWidth="2" />
-                  <rect x={cx - 19} y={cyRes - 22} width="38" height="14" rx="3" fill="#f3e8ff" stroke="#d8b4fe" />
-                  <text x={cx} y={cyRes - 11} textAnchor="middle" fill="#6f42c1" fontSize="8" fontWeight="bold" className="font-monospace">
-                    +{p.residualCm}
-                  </text>
 
-                  {/* 초과 확률 배지 */}
-                  <g transform={`translate(${cx - 15}, ${paddingTop + chartH - 22})`}>
-                    <rect
-                      width="30"
-                      height="15"
-                      rx="8"
-                      fill={p.exceedProbability >= 0.5 ? '#f8d7da' : '#cfe2ff'}
-                      stroke={p.exceedProbability >= 0.5 ? '#f5c2c7' : '#b6d4fe'}
-                    />
-                    <text
-                      x="15"
-                      y="11"
-                      textAnchor="middle"
-                      fill={p.exceedProbability >= 0.5 ? '#842029' : '#084298'}
-                      fontSize="8"
-                      fontWeight="bold"
-                    >
-                      {Math.round(p.exceedProbability * 100)}%
-                    </text>
-                  </g>
+                  {/* 호버 툴팁: 마우스를 올린 점의 수치만 표시 */}
+                  {hoveredLeadHour === p.leadHour && (
+                    <g>
+                      <rect x={tipX} y={tipY} width={tipW} height={tipH} rx="6" fill="#fff" stroke="#dee2e6" />
+                      <text x={tipX + 10} y={tipY + 16} fill="#212529" fontSize="10" fontWeight="bold">
+                        {p.leadHour}h 리드타임 ({p.targetTime.substring(11, 16)})
+                      </text>
+                      <text x={tipX + 10} y={tipY + 31} fill="#0d6efd" fontSize="10" fontWeight="bold">
+                        총수위 {p.totalTideCm}cm
+                      </text>
+                      <text x={tipX + 10} y={tipY + 46} fill="#6f42c1" fontSize="10">
+                        잔차 +{p.residualCm}cm
+                      </text>
+                      <text x={tipX + 10} y={tipY + 59} fill="#084298" fontSize="10">
+                        초과율 {Math.round(p.exceedProbability * 100)}%
+                      </text>
+                    </g>
+                  )}
                 </g>
               );
             })}
