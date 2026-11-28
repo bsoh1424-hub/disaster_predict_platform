@@ -37,7 +37,7 @@ export default function AuthNav() {
   }
 
   return (
-    <Link href="/login" className="btn btn-outline-light btn-sm fw-semibold">
+    <Link href={`/login?next=${encodeURIComponent(pathname)}`} className="btn btn-outline-light btn-sm fw-semibold">
       로그인
     </Link>
   );

@@ -74,7 +74,7 @@ function ForecastContent() {
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'UNAUTHORIZED') {
         sessionStorage.removeItem('token');
-        window.location.href = '/login';
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
         return;
       }
       alert('실시간 재계산 중 오류가 발생했습니다: ' + (err instanceof Error ? err.message : String(err)));
@@ -96,7 +96,7 @@ function ForecastContent() {
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'UNAUTHORIZED') {
         sessionStorage.removeItem('token');
-        window.location.href = '/login';
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
         return;
       }
       alert('전체 재계산 중 오류가 발생했습니다: ' + (err instanceof Error ? err.message : String(err)));
