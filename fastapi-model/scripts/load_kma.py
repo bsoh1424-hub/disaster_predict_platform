@@ -63,6 +63,7 @@ def fetch_day(stn, day):
             "gst": it.get("WS1_GST"),
             "pa": it.get("PA"),
             "wh": it.get("WH_SIG"),
+            "wp": it.get("WP"),
         })
     return rows
 
@@ -92,8 +93,8 @@ for day in days:
             for row in rows:
                 ts = f"{row['tm'][:4]}-{row['tm'][4:6]}-{row['tm'][6:8]} {row['tm'][8:10]}:{row['tm'][10:12]}:00"
                 cur.execute(
-                    "UPDATE tide_observation SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s, wind_gust_ms=%s, wave_height_m=%s WHERE station_code=%s AND obs_time=%s",
-                    (row["pa"], row["ws"], row["wd"], row["gst"], row["wh"], station, ts),
+                    "UPDATE tide_observation SET air_pressure_hpa=%s, wind_speed_ms=%s, wind_dir_deg=%s, wind_gust_ms=%s, wave_height_m=%s, wave_period_s=%s WHERE station_code=%s AND obs_time=%s",
+                    (row["pa"], row["ws"], row["wd"], row["gst"], row["wh"], row["wp"], station, ts),
                 )
                 updated += cur.rowcount
         conn.commit()
